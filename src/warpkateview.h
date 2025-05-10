@@ -14,11 +14,14 @@
 #include <QObject>
 #include <QWidget>
 #include <QDockWidget>
+#include <QTextEdit>
+#include <QLineEdit>
+#include <QToolBar>
 
 class WarpKatePlugin;
 class TerminalEmulator;
 class BlockModel;
-class TerminalBlockView;
+// We don't use TerminalBlockView in the simplified interface
 class QAction;
 class QToolButton;
 
@@ -105,30 +108,119 @@ private:
     void executeCommand(const QString &command);
     
     /**
+     * Handle AI query input
+     * @param query The query text
+     */
+    void handleAIQuery(const QString &query);
+    
+    /**
+     * Insert selected text into editor
+     */
+    void insertToEditor();
+    
+    /**
+     * Save current conversation to Obsidian
+     */
+    void saveToObsidian();
+    
+    /**
+     * Check code in current editor
+     */
+    void checkCode();
+    
+    /**
+     * Show preferences dialog
+     */
+    void showPreferences();
+    
+    /**
+     * Handle input text submission
+     */
+    void submitInput();
+    
+    /**
      * Get the current text from the editor (current line or selection)
      * @return Current text
      */
     QString getCurrentText();
+    
+    /**
+     * Get context information from the current document and environment
+     * @return Context information as text
+     */
+    QString getContextInformation();
+    
+    /**
+     * Generate an AI response to a query
+     * @param query The user's query
+     * @param contextInfo Additional context information
+     */
+    void generateAIResponse(const QString &query, const QString &contextInfo);
+    
+private Q_SLOTS:
+    /**
+     * Handle terminal output
+     * @param output Terminal output text
+     */
+    void onTerminalOutput(const QString &output);
+    
+    /**
+     * Handle command execution completion
+     * @param command The executed command
+     * @param output Command output
+     * @param exitCode Command exit code
+     */
+    void onCommandExecuted(const QString &command, const QString &output, int exitCode);
+    
+    /**
+     * Handle command detection
+     * @param command Detected command text
+     */
+    void onCommandDetected(const QString &command);
+    
+    /**
+     * Handle working directory changes
+     * @param directory New working directory
+     */
+    void onWorkingDirectoryChanged(const QString &directory);
+    
+    /**
+     * Handle shell process termination
+     * @param exitCode Shell exit code
+     */
+    void onShellFinished(int exitCode);
+    
+protected:
+    /**
+     * Event filter for handling keyboard events in the input area
+     */
+    bool eventFilter(QObject *obj, QEvent *event) override;
 
 private:
     WarpKatePlugin *m_plugin;
     KTextEditor::MainWindow *m_mainWindow;
     
     // UI components
-    QDockWidget *m_dockWidget;
+    QWidget *m_toolView;
     QWidget *m_terminalWidget;
+    QTextEdit *m_conversationArea;
+    QTextEdit *m_promptInput;
+    QToolBar *m_toolbar;
     
     // Terminal components
     TerminalEmulator *m_terminalEmulator;
     BlockModel *m_blockModel;
-    TerminalBlockView *m_terminalBlockView;
     
     // Actions
     QAction *m_showTerminalAction;
     QAction *m_executeAction;
     QAction *m_clearAction;
-    QAction *m_prevBlockAction;
-    QAction *m_nextBlockAction;
+    QAction *m_insertToEditorAction;
+    QAction *m_saveToObsidianAction;
+    QAction *m_checkCodeAction;
+    
+    // State variables
+    int m_currentBlockId;
     
     // State
     bool m_terminalVisible;

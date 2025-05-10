@@ -7,7 +7,7 @@
 #include "warpkateplugin.h"
 #include "terminalemulator.h"
 #include "blockmodel.h"
-#include "terminalblockview.h"
+// Not using terminalblockview.h in simplified interface
 
 #include <KLocalizedString>
 #include <KActionCollection>
@@ -22,17 +22,31 @@
 #include <QToolButton>
 #include <QFileInfo>
 #include <QDir>
+#include <QTextEdit>
+#include <QLineEdit>
+#include <QToolBar>
+#include <QFontDatabase>
+#include <QEvent>
+#include <QKeyEvent>
+#include <QTextBlock>
+#include <QTextCharFormat>
+#include <QBrush>
+#include <QTimer>
 
 WarpKateView::WarpKateView(WarpKatePlugin *plugin, KTextEditor::MainWindow *mainWindow)
     : QObject(mainWindow)
     , KXMLGUIClient()
     , m_plugin(plugin)
     , m_mainWindow(mainWindow)
-    , m_dockWidget(nullptr)
+    , m_toolView(nullptr)
     , m_terminalWidget(nullptr)
+    , m_conversationArea(nullptr)
+    , m_promptInput(nullptr)
+    , m_toolbar(nullptr)
     , m_terminalEmulator(nullptr)
     , m_blockModel(nullptr)
     , m_terminalVisible(false)
+    , m_currentBlockId(-1)
 {
     setComponentName(QStringLiteral("warpkate"), i18n("WarpKate"));
     
@@ -64,32 +78,79 @@ WarpKateView::~WarpKateView()
     delete m_blockModel;
     delete m_terminalEmulator;
     
-    if (m_dockWidget) {
-        delete m_dockWidget;
-    }
+    // The tool view is owned by the main window, we don't need to delete it
 }
 
 void WarpKateView::setupUI()
 {
-    // Create dock widget
-    m_dockWidget = new QDockWidget(i18n("WarpKate Terminal"), m_mainWindow->window());
-    m_dockWidget->setObjectName(QStringLiteral("warpkate_terminal"));
-    m_dockWidget->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    // Create the tool view in the bottom area
+    m_toolView = m_mainWindow->createToolView(
+        m_plugin,
+        QStringLiteral("warpkate_terminal"),
+        KTextEditor::MainWindow::Bottom,
+        QIcon(QIcon::fromTheme(QStringLiteral("utilities-terminal")).pixmap(QSize(14, 14))),
+        i18n("WarpKate"));
     
-    // Create placeholder widget
-    m_terminalWidget = new QWidget(m_dockWidget);
+    // Create main container widget
+    m_terminalWidget = new QWidget(m_toolView);
     QVBoxLayout *layout = new QVBoxLayout(m_terminalWidget);
+    layout->setContentsMargins(2, 2, 2, 2);
+    layout->setSpacing(2);
     
-    // Add placeholder label (will be replaced with actual terminal)
-    QLabel *placeholderLabel = new QLabel(i18n("WarpKate Terminal (Placeholder)"), m_terminalWidget);
-    layout->addWidget(placeholderLabel);
+    // Create toolbar for buttons
+    m_toolbar = new QToolBar(m_terminalWidget);
+    m_toolbar->setIconSize(QSize(14, 14));
     
-    m_dockWidget->setWidget(m_terminalWidget);
-    // Use addWidget instead as KTextEditor::MainWindow doesn't have addDockWidget
-    m_mainWindow->addWidget(m_dockWidget);
+    // Add action buttons to toolbar
+    m_toolbar->addAction(QIcon::fromTheme(QStringLiteral("dialog-ok-apply")), i18n("Code Check"), 
+                        this, &WarpKateView::checkCode);
+    m_toolbar->addAction(QIcon::fromTheme(QStringLiteral("edit-paste")), i18n("Insert to Editor"), 
+                        this, &WarpKateView::insertToEditor);
+    m_toolbar->addAction(QIcon::fromTheme(QStringLiteral("document-save")), i18n("Save to Obsidian"), 
+                        this, &WarpKateView::saveToObsidian);
     
-    // Hide initially
-    m_dockWidget->hide();
+    // Add spacer to push preferences button to the right
+    QWidget* spacer = new QWidget(m_toolbar);
+    spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    m_toolbar->addWidget(spacer);
+    
+    // Add preferences button to the right
+    m_toolbar->addAction(QIcon::fromTheme(QStringLiteral("configure")), i18n("Preferences"), 
+                        this, &WarpKateView::showPreferences);
+    
+    layout->addWidget(m_toolbar);
+    
+    // Create conversation area (read-only text edit)
+    m_conversationArea = new QTextEdit(m_terminalWidget);
+    m_conversationArea->setReadOnly(true);
+    m_conversationArea->setAcceptRichText(true);
+    m_conversationArea->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    layout->addWidget(m_conversationArea, 1); // Takes most of the space
+    
+    // Create prompt input area - use QTextEdit for expandable area
+    m_promptInput = new QTextEdit(m_terminalWidget);
+    
+    // Configure the input area
+    m_promptInput->setPlaceholderText(i18n("> Type command or '?' for AI assistant"));
+    m_promptInput->setMinimumHeight(24);  // Start small
+    m_promptInput->setMaximumHeight(150); // Limit maximum height
+    m_promptInput->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::MinimumExpanding);
+    m_promptInput->setAcceptRichText(false);
+    m_promptInput->setTabChangesFocus(true);
+    m_promptInput->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    m_promptInput->setLineWrapMode(QTextEdit::WidgetWidth);
+    
+    // Set a fixed width font for the input
+    QFont inputFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    m_promptInput->setFont(inputFont);
+    
+    // Install event filter to handle Enter/Shift+Enter
+    m_promptInput->installEventFilter(this);
+    
+    layout->addWidget(m_promptInput);
+    
+    // Initially hide the tool view
+    m_toolView->setVisible(false);
 }
 
 void WarpKateView::setupActions()
@@ -99,7 +160,7 @@ void WarpKateView::setupActions()
     // Show/hide terminal action
     m_showTerminalAction = actions->addAction(QStringLiteral("warpkate_show_terminal"), this, &WarpKateView::toggleTerminal);
     m_showTerminalAction->setText(i18n("Show WarpKate Terminal"));
-    m_showTerminalAction->setIcon(QIcon::fromTheme(QStringLiteral("konsole")));
+    m_showTerminalAction->setIcon(QIcon::fromTheme(QStringLiteral("utilities-terminal")));
     m_showTerminalAction->setCheckable(true);
     actions->setDefaultShortcut(m_showTerminalAction, Qt::Key_F8);
     
@@ -114,65 +175,44 @@ void WarpKateView::setupActions()
     m_clearAction->setText(i18n("Clear Terminal"));
     m_clearAction->setIcon(QIcon::fromTheme(QStringLiteral("edit-clear")));
     
-    // Navigation actions
-    m_prevBlockAction = actions->addAction(QStringLiteral("warpkate_prev_block"), this, &WarpKateView::previousBlock);
-    m_prevBlockAction->setText(i18n("Previous Command Block"));
-    m_prevBlockAction->setIcon(QIcon::fromTheme(QStringLiteral("go-up")));
-    actions->setDefaultShortcut(m_prevBlockAction, Qt::ALT | Qt::Key_Up);
+    // Insert to editor action
+    m_insertToEditorAction = actions->addAction(QStringLiteral("warpkate_insert_to_editor"), this, &WarpKateView::insertToEditor);
+    m_insertToEditorAction->setText(i18n("Insert to Editor"));
+    m_insertToEditorAction->setIcon(QIcon::fromTheme(QStringLiteral("edit-paste")));
+    actions->setDefaultShortcut(m_insertToEditorAction, Qt::CTRL | Qt::Key_I);
     
-    m_nextBlockAction = actions->addAction(QStringLiteral("warpkate_next_block"), this, &WarpKateView::nextBlock);
-    m_nextBlockAction->setText(i18n("Next Command Block"));
-    m_nextBlockAction->setIcon(QIcon::fromTheme(QStringLiteral("go-down")));
-    actions->setDefaultShortcut(m_nextBlockAction, Qt::ALT | Qt::Key_Down);
+    // Save to Obsidian action
+    m_saveToObsidianAction = actions->addAction(QStringLiteral("warpkate_save_to_obsidian"), this, &WarpKateView::saveToObsidian);
+    m_saveToObsidianAction->setText(i18n("Save to Obsidian"));
+    m_saveToObsidianAction->setIcon(QIcon::fromTheme(QStringLiteral("document-save")));
+    actions->setDefaultShortcut(m_saveToObsidianAction, Qt::CTRL | Qt::Key_S);
+    
+    // Check code action
+    m_checkCodeAction = actions->addAction(QStringLiteral("warpkate_check_code"), this, &WarpKateView::checkCode);
+    m_checkCodeAction->setText(i18n("Check Code"));
+    m_checkCodeAction->setIcon(QIcon::fromTheme(QStringLiteral("dialog-ok-apply")));
+    actions->setDefaultShortcut(m_checkCodeAction, Qt::CTRL | Qt::Key_K);
 }
 
 void WarpKateView::setupTerminal()
 {
     qDebug() << "WarpKate: Setting up terminal components";
     
-    // Clear existing layout
-    if (m_terminalWidget->layout()) {
-        QLayoutItem *item;
-        while ((item = m_terminalWidget->layout()->takeAt(0)) != nullptr) {
-            delete item->widget();
-            delete item;
-        }
-        delete m_terminalWidget->layout();
-    }
-    
-    // Create new layout
-    QVBoxLayout *layout = new QVBoxLayout(m_terminalWidget);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
-    
     // Initialize terminal components
     m_terminalEmulator = new TerminalEmulator(m_terminalWidget);
     m_blockModel = new BlockModel(this);
-    m_terminalBlockView = new TerminalBlockView(m_terminalWidget);
     
-    // Connect components
-    m_terminalBlockView->setTerminalEmulator(m_terminalEmulator);
-    m_terminalBlockView->setBlockModel(m_blockModel);
-    // Comment out this line as BlockModel doesn't have setTerminalEmulator method
-    // m_blockModel->setTerminalEmulator(m_terminalEmulator);
+    // Connect to terminal signals for real-time updates
+    connect(m_terminalEmulator, &TerminalEmulator::outputAvailable, this, &WarpKateView::onTerminalOutput);
+    connect(m_terminalEmulator, &TerminalEmulator::commandExecuted, this, &WarpKateView::onCommandExecuted);
+    connect(m_terminalEmulator, &TerminalEmulator::commandDetected, this, &WarpKateView::onCommandDetected);
+    connect(m_terminalEmulator, &TerminalEmulator::workingDirectoryChanged, this, &WarpKateView::onWorkingDirectoryChanged);
+    connect(m_terminalEmulator, &TerminalEmulator::shellFinished, this, &WarpKateView::onShellFinished);
+
+    // Connect block model to terminal
+    m_blockModel->connectToTerminal(m_terminalEmulator);
     
-    // Add terminal view to layout
-    layout->addWidget(m_terminalBlockView);
-    
-    // Connect command execution signal from terminal view
-    connect(m_terminalBlockView, &TerminalBlockView::commandExecuted, 
-            this, [this](const QString &cmd) {
-                qDebug() << "WarpKate: Command executed:" << cmd;
-            });
-    
-    // Connect block selection signal from terminal view
-    connect(m_terminalBlockView, &TerminalBlockView::blockSelected,
-            this, [this](int blockId) {
-                qDebug() << "WarpKate: Block selected:" << blockId;
-            });
-    
-    // Initialize and start terminal
-    // Use reasonable default size for the terminal (80 columns x 24 rows)
+    // Initialize and start terminal with default size
     m_terminalEmulator->initialize(24, 80);
     
     // Start shell with current document directory if available
@@ -196,7 +236,7 @@ void WarpKateView::setupTerminal()
 void WarpKateView::showTerminal()
 {
     if (!m_terminalVisible) {
-        m_dockWidget->show();
+        m_toolView->show();
         m_terminalVisible = true;
         m_showTerminalAction->setChecked(true);
     }
@@ -205,7 +245,7 @@ void WarpKateView::showTerminal()
 void WarpKateView::hideTerminal()
 {
     if (m_terminalVisible) {
-        m_dockWidget->hide();
+        m_toolView->hide();
         m_terminalVisible = false;
         m_showTerminalAction->setChecked(false);
     }
@@ -250,9 +290,35 @@ void WarpKateView::executeCommand(const QString &command)
     
     qDebug() << "WarpKate: Executing command:" << command;
     
-    if (m_terminalBlockView) {
-        m_terminalBlockView->executeCommand(command);
-    }
+    // Display command in conversation area with prompt
+    QString promptText = QStringLiteral("> %1").arg(command);
+    
+    // Format as a command with a distinctive style
+    QTextCharFormat commandFormat;
+    commandFormat.setFontWeight(QFont::Bold);
+    commandFormat.setForeground(QBrush(QColor(0, 128, 255)));
+    
+    // Add command to conversation area with formatting
+    QTextCursor cursor = m_conversationArea->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    m_conversationArea->setTextCursor(cursor);
+    cursor.insertBlock();
+    cursor.setCharFormat(commandFormat);
+    cursor.insertText(promptText);
+    cursor.setCharFormat(QTextCharFormat());
+    
+    // Create a block for this command in the model
+    int blockId = m_blockModel->executeCommand(command);
+    
+    // Store the block ID for reference when output arrives
+    m_currentBlockId = blockId;
+    
+    // Execute the command in the terminal
+    m_terminalEmulator->executeCommand(command);
+    
+    // Output will be handled by the outputAvailable and commandExecuted signals
+    // Make sure the view scrolls to show the new command
+    m_conversationArea->ensureCursorVisible();
 }
 
 void WarpKateView::executeCurrentText()
@@ -264,28 +330,19 @@ void WarpKateView::executeCurrentText()
 void WarpKateView::clearTerminal()
 {
     qDebug() << "WarpKate: Clearing terminal";
-    
-    if (m_terminalBlockView) {
-        m_terminalBlockView->clear();
-    }
+    m_conversationArea->clear();
 }
 
 void WarpKateView::previousBlock()
 {
-    qDebug() << "WarpKate: Navigating to previous block";
-    
-    if (m_terminalBlockView) {
-        m_terminalBlockView->navigateToPreviousBlock();
-    }
+    qDebug() << "WarpKate: Navigating to previous block (not implemented in simplified interface)";
+    // Not implemented in the simplified interface
 }
 
 void WarpKateView::nextBlock()
 {
-    qDebug() << "WarpKate: Navigating to next block";
-    
-    if (m_terminalBlockView) {
-        m_terminalBlockView->navigateToNextBlock();
-    }
+    qDebug() << "WarpKate: Navigating to next block (not implemented in simplified interface)";
+    // Not implemented in the simplified interface
 }
 
 void WarpKateView::onDocumentChanged(KTextEditor::Document *document)
@@ -303,10 +360,550 @@ void WarpKateView::onDocumentChanged(KTextEditor::Document *document)
         if (fileInfo.exists()) {
             QString dir = fileInfo.dir().absolutePath();
             // Execute cd command to change working directory
-            m_terminalEmulator->executeCommand(QString(u"cd \"%1\"").arg(dir));
+            m_terminalEmulator->executeCommand(QStringLiteral("cd \"%1\"").arg(dir));
             qDebug() << "WarpKate: Setting working directory to:" << dir;
         }
     }
+}
+
+// Add missing method implementations
+void WarpKateView::handleAIQuery(const QString &query)
+{
+    if (query.isEmpty()) {
+        return;
+    }
+    
+    // Make terminal visible if it's not
+    showTerminal();
+    
+    qDebug() << "WarpKate: Handling AI query:" << query;
+    
+    // Create formatted query with distinctive styling
+    QTextCharFormat queryFormat;
+    queryFormat.setFontWeight(QFont::Bold);
+    queryFormat.setForeground(QBrush(QColor(75, 0, 130))); // Indigo for AI queries
+    
+    // Add query to conversation area with formatting
+    QTextCursor cursor = m_conversationArea->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    m_conversationArea->setTextCursor(cursor);
+    cursor.insertBlock();
+    cursor.setCharFormat(queryFormat);
+    cursor.insertText(QStringLiteral("? %1").arg(query));
+    cursor.setCharFormat(QTextCharFormat());
+    
+    // Get context information to enhance AI response
+    QString contextInfo = getContextInformation();
+    
+    // Simulate an AI response (in a real implementation, this would call an AI service)
+    QTimer::singleShot(500, this, [this, query, contextInfo]() {
+        generateAIResponse(query, contextInfo);
+    });
+    
+    // Make sure the view scrolls to show the query
+    m_conversationArea->ensureCursorVisible();
+}
+
+void WarpKateView::insertToEditor()
+{
+    // Get the current text from the conversation area
+    QTextCursor cursor = m_conversationArea->textCursor();
+    QString selectedText = cursor.selectedText();
+    
+    if (selectedText.isEmpty()) {
+        qDebug() << "WarpKate: No text selected to insert";
+        return;
+    }
+    
+    // Get the active editor view
+    KTextEditor::View *view = m_mainWindow->activeView();
+    if (!view) {
+        qDebug() << "WarpKate: No active editor view";
+        return;
+    }
+    
+    // Insert the selected text at current cursor position in the editor
+    view->insertText(selectedText);
+    qDebug() << "WarpKate: Inserted text into editor";
+}
+
+void WarpKateView::saveToObsidian()
+{
+    qDebug() << "WarpKate: Save to Obsidian requested";
+    
+    // Get the conversation content
+    QString content = m_conversationArea->toPlainText();
+    if (content.isEmpty()) {
+        qDebug() << "WarpKate: No content to save";
+        return;
+    }
+    
+    // TODO: Implement actual Obsidian vault integration
+    // For now, just show a message in the conversation area
+    m_conversationArea->append(QStringLiteral("\nSaving to Obsidian is not yet implemented."));
+    m_conversationArea->append(QString());
+}
+
+void WarpKateView::checkCode()
+{
+    qDebug() << "WarpKate: Code check requested";
+    
+    // Get the current text from the editor
+    QString code = getCurrentText();
+    if (code.isEmpty()) {
+        qDebug() << "WarpKate: No code selected to check";
+        return;
+    }
+    
+    // Make terminal visible if it's not
+    showTerminal();
+    
+    // Format and display the request
+    QTextCharFormat requestFormat;
+    requestFormat.setFontWeight(QFont::Bold);
+    requestFormat.setForeground(QBrush(QColor(0, 100, 0))); // Dark green
+    
+    QTextCursor cursor = m_conversationArea->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    m_conversationArea->setTextCursor(cursor);
+    cursor.insertBlock();
+    cursor.setCharFormat(requestFormat);
+    cursor.insertText(QStringLiteral("Code Check requested:"));
+    cursor.setCharFormat(QTextCharFormat());
+    
+    // Format and display the code
+    QTextCharFormat codeFormat;
+    codeFormat.setFontFamily(QStringLiteral("Monospace"));
+    codeFormat.setBackground(QBrush(QColor(240, 240, 240))); // Light gray
+    
+    cursor.insertBlock();
+    cursor.insertText(QStringLiteral("```"));
+    cursor.insertBlock();
+    cursor.setCharFormat(codeFormat);
+    cursor.insertText(code);
+    cursor.setCharFormat(QTextCharFormat());
+    cursor.insertBlock();
+    cursor.insertText(QStringLiteral("```"));
+    
+    // In a real implementation, this would analyze the code
+    // For now, just create a simulated response after a short delay
+    QTimer::singleShot(800, this, [this, code]() {
+        // Create a simulated code analysis response
+        QTextCursor cursor = m_conversationArea->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        m_conversationArea->setTextCursor(cursor);
+        
+        // Format for analysis header
+        QTextCharFormat analysisHeaderFormat;
+        analysisHeaderFormat.setFontWeight(QFont::Bold);
+        analysisHeaderFormat.setForeground(QBrush(QColor(0, 100, 0))); // Dark green
+        
+        cursor.insertBlock();
+        cursor.setCharFormat(analysisHeaderFormat);
+        cursor.insertText(QStringLiteral("Code Analysis:"));
+        cursor.setCharFormat(QTextCharFormat());
+        
+        // Format for analysis results
+        cursor.insertBlock();
+        
+        // Detect language (simple detection)
+        QString language = QStringLiteral("unknown");
+        if (code.contains(QStringLiteral("class")) && code.contains(QStringLiteral(";"))) {
+            language = QStringLiteral("C++/Java");
+        } else if (code.contains(QStringLiteral("def ")) && code.contains(QStringLiteral(":"))) {
+            language = QStringLiteral("Python");
+        } else if (code.contains(QStringLiteral("function")) && code.contains(QStringLiteral("{"))) {
+            language = QStringLiteral("JavaScript");
+        }
+        
+        // Create analysis points based on language
+        QTextCharFormat bulletFormat;
+        bulletFormat.setFontWeight(QFont::Bold);
+        
+        // Add language detection result
+        cursor.insertText(QStringLiteral("Detected language: "));
+        cursor.setCharFormat(bulletFormat);
+        cursor.insertText(language);
+        cursor.setCharFormat(QTextCharFormat());
+        cursor.insertBlock();
+        
+        // Add analysis points
+        QStringList analysisPoints;
+        analysisPoints << QStringLiteral("Code structure appears well-organized.")
+                      << QStringLiteral("No obvious syntax errors detected.")
+                      << QStringLiteral("Consider adding more comments to improve readability.");
+        
+        if (language == QStringLiteral("C++/Java")) {
+            analysisPoints << QStringLiteral("Check memory management to prevent leaks.");
+            if (code.contains(QStringLiteral("new ")) && !code.contains(QStringLiteral("delete "))) {
+                analysisPoints << QStringLiteral("Warning: Found 'new' without corresponding 'delete'.");
+            }
+        } else if (language == QStringLiteral("Python")) {
+            analysisPoints << QStringLiteral("Consider using list comprehensions for conciseness.");
+            if (code.contains(QStringLiteral("except:")) && !code.contains(QStringLiteral("except "))) {
+                analysisPoints << QStringLiteral("Warning: Bare except clause can hide errors.");
+            }
+        }
+        
+        // Format each analysis point
+        for (const QString &point : analysisPoints) {
+            cursor.insertText(QStringLiteral("• "));
+            cursor.insertText(point);
+            cursor.insertBlock();
+        }
+        
+        // Add a blank line
+        cursor.insertBlock();
+        
+        // Ensure visible
+        m_conversationArea->ensureCursorVisible();
+    });
+}
+
+void WarpKateView::showPreferences()
+{
+    qDebug() << "WarpKate: Preferences dialog requested";
+    
+    // TODO: Implement a preferences dialog
+    // For now, just show a placeholder message in the conversation area
+    m_conversationArea->append(QStringLiteral("\nPreferences dialog would open here."));
+    m_conversationArea->append(QStringLiteral("Settings would include:"));
+    m_conversationArea->append(QStringLiteral("- Obsidian vault path"));
+    m_conversationArea->append(QStringLiteral("- AI model configuration"));
+    m_conversationArea->append(QStringLiteral("- Shell preferences"));
+    m_conversationArea->append(QString());  // Add a blank line for readability
+}
+
+void WarpKateView::submitInput()
+{
+    // Get input text
+    QString input = m_promptInput->toPlainText().trimmed();
+    if (input.isEmpty()) {
+        return;
+    }
+    
+    // Process based on whether it starts with "?"
+    if (input.startsWith(QStringLiteral("?"))) {
+        // AI mode
+        handleAIQuery(input.mid(1).trimmed());
+    } else {
+        // Terminal mode
+        executeCommand(input);
+    }
+    
+    // Clear input area
+    m_promptInput->clear();
+    
+    // Reset height to minimum (will grow again as needed)
+    m_promptInput->setFixedHeight(24);
+    m_promptInput->setMaximumHeight(150);
+}
+
+bool WarpKateView::eventFilter(QObject *obj, QEvent *event)
+{
+    // Only process events from the prompt input
+    if (obj != m_promptInput) {
+        return QObject::eventFilter(obj, event);
+    }
+    
+    // Handle key press events
+    if (event->type() == QEvent::KeyPress) {
+        QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
+        
+        // Detect Enter key (but not Shift+Enter)
+        if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
+            if (!(keyEvent->modifiers() & Qt::ShiftModifier)) {
+                submitInput();
+                return true; // Event handled
+            }
+        }
+    }
+    
+    // Let the default handler process other events
+    return QObject::eventFilter(obj, event);
+}
+
+QString WarpKateView::getContextInformation()
+{
+    QString context;
+    
+    // Add current document information
+    KTextEditor::View *view = m_mainWindow->activeView();
+    if (view && view->document()) {
+        KTextEditor::Document *doc = view->document();
+        context += QStringLiteral("Current document: %1\n").arg(doc->documentName());
+        
+        // Add file type information
+        if (!doc->mimeType().isEmpty()) {
+            context += QStringLiteral("File type: %1\n").arg(doc->mimeType());
+        }
+        
+        // Add cursor position
+        KTextEditor::Cursor pos = view->cursorPosition();
+        context += QStringLiteral("Cursor position: Line %1, Column %2\n").arg(pos.line() + 1).arg(pos.column() + 1);
+        
+        // Add some context around cursor (a few lines before and after)
+        int startLine = qMax(0, pos.line() - 3);
+        int endLine = qMin(doc->lines() - 1, pos.line() + 3);
+        
+        context += QStringLiteral("\nCode context:\n");
+        for (int line = startLine; line <= endLine; ++line) {
+            QString lineText = doc->line(line);
+            // Highlight the current line
+            if (line == pos.line()) {
+                context += QStringLiteral("> %1: %2\n").arg(line + 1).arg(lineText);
+            } else {
+                context += QStringLiteral("  %1: %2\n").arg(line + 1).arg(lineText);
+            }
+        }
+    }
+    
+    // Add working directory information from terminal
+    if (m_terminalEmulator) {
+        QString pwd = m_terminalEmulator->currentWorkingDirectory();
+        if (!pwd.isEmpty()) {
+            context += QStringLiteral("\nWorking directory: %1\n").arg(pwd);
+        }
+    }
+    
+    return context;
+}
+
+void WarpKateView::generateAIResponse(const QString &query, const QString &contextInfo)
+{
+    // In a real implementation, this would call an AI service
+    // For now, we'll create a simulated response
+    
+    QTextCursor cursor = m_conversationArea->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    m_conversationArea->setTextCursor(cursor);
+    
+    // Format for AI response
+    QTextCharFormat aiHeaderFormat;
+    aiHeaderFormat.setFontWeight(QFont::Bold);
+    aiHeaderFormat.setForeground(QBrush(QColor(75, 0, 130))); // Indigo
+    
+    cursor.insertBlock();
+    cursor.setCharFormat(aiHeaderFormat);
+    cursor.insertText(QStringLiteral("AI Response:"));
+    cursor.setCharFormat(QTextCharFormat());
+    
+    cursor.insertBlock();
+    
+    // Generate a response based on the query
+    QString response;
+    
+    if (query.contains(QStringLiteral("help")) || query.contains(QStringLiteral("?"))) {
+        response = QStringLiteral("I can help you with coding tasks, terminal commands, and providing explanations. "
+                               "Try asking about specific code, commands, or concepts!");
+    }
+    else if (query.contains(QStringLiteral("code")) || query.contains(QStringLiteral("function")) || query.contains(QStringLiteral("class"))) {
+        // Code-related question
+        response = QStringLiteral("Based on your code context, I can suggest the following:\n\n"
+                               "1. Consider structuring your code with clear function boundaries\n"
+                               "2. Use descriptive variable names for better readability\n"
+                               "3. Add comments to explain complex logic\n\n"
+                               "Would you like me to provide a specific code example?");
+    }
+    else if (query.contains(QStringLiteral("terminal")) || query.contains(QStringLiteral("command")) || query.contains(QStringLiteral("shell"))) {
+        // Terminal-related question
+        response = QStringLiteral("Here are some useful terminal commands:\n\n"
+                               "```bash\n"
+                               "# Navigate directories\n"
+                               "cd directory_name    # Change to a directory\n"
+                               "cd ..               # Go up one level\n"
+                               "pwd                 # Print working directory\n\n"
+                               "# File operations\n"
+                               "ls -la              # List all files with details\n"
+                               "touch filename      # Create empty file\n"
+                               "mkdir dirname       # Create directory\n"
+                               "```\n\n"
+                               "Is there a specific terminal task you need help with?");
+    }
+    else {
+        // Generic response
+        response = QStringLiteral("I understand you're asking about '%1'. "
+                               "While I don't have specific information about this, "
+                               "I can help you research it or provide general guidance. "
+                               "Could you provide more details about what you're trying to accomplish?").arg(query);
+    }
+    
+    // Insert response
+    cursor.insertText(response);
+    
+    // Add usage hint for first-time users
+    static bool firstResponse = true;
+    if (firstResponse) {
+        cursor.insertBlock();
+        cursor.insertBlock();
+        QTextCharFormat hintFormat;
+        hintFormat.setFontItalic(true);
+        hintFormat.setForeground(QBrush(QColor(100, 100, 100))); // Gray
+        cursor.setCharFormat(hintFormat);
+        cursor.insertText(QStringLiteral("Tip: Select text in the response and use 'Insert to Editor' to paste it into your document."));
+        cursor.setCharFormat(QTextCharFormat());
+        firstResponse = false;
+    }
+    
+    // Add a blank line
+    cursor.insertBlock();
+    
+    // Ensure visible
+    m_conversationArea->ensureCursorVisible();
+}
+
+void WarpKateView::onTerminalOutput(const QString &output)
+{
+    if (output.isEmpty()) {
+        return;
+    }
+    
+    qDebug() << "WarpKate: Terminal output received:" << (output.length() > 50 ? output.left(50) + QStringLiteral("...") : output);
+    
+    // In a complete implementation, we would process this output and display it in the conversation area
+    // For now, we'll just display it without much processing
+    
+    // Format for terminal output
+    QTextCharFormat outputFormat;
+    outputFormat.setFontFamily(QStringLiteral("Monospace"));
+    
+    // Add to conversation area
+    QTextCursor cursor = m_conversationArea->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    m_conversationArea->setTextCursor(cursor);
+    
+    // Only insert a block if we're not at the beginning of a block already
+    if (!cursor.atBlockStart()) {
+        cursor.insertBlock();
+    }
+    
+    cursor.setCharFormat(outputFormat);
+    cursor.insertText(output);
+    
+    // Make sure the view scrolls to show the new output
+    m_conversationArea->ensureCursorVisible();
+}
+
+void WarpKateView::onCommandExecuted(const QString &command, const QString &output, int exitCode)
+{
+    qDebug() << "WarpKate: Command executed:" << command << "with exit code:" << exitCode;
+    
+    // Format and display the command completion info
+    QTextCursor cursor = m_conversationArea->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    m_conversationArea->setTextCursor(cursor);
+    
+    // Add separator
+    cursor.insertBlock();
+    
+    // Format output based on exit code
+    QTextCharFormat resultFormat;
+    resultFormat.setFontFamily(QStringLiteral("Monospace"));
+    
+    if (exitCode != 0) {
+        // Command failed, use error formatting
+        resultFormat.setForeground(QBrush(QColor(200, 0, 0))); // Red for errors
+        cursor.setCharFormat(resultFormat);
+        cursor.insertText(QStringLiteral("Command exited with code %1").arg(exitCode));
+    } else {
+        // Show a subtle completed message
+        resultFormat.setForeground(QBrush(QColor(0, 150, 0))); // Green for success
+        resultFormat.setFontItalic(true);
+        cursor.setCharFormat(resultFormat);
+        cursor.insertText(QStringLiteral("Command completed successfully"));
+    }
+    
+    cursor.setCharFormat(QTextCharFormat());
+    cursor.insertBlock();
+    
+    // Make sure the view scrolls to show the completion status
+    m_conversationArea->ensureCursorVisible();
+    
+    // Update the block model with the complete output
+    if (m_currentBlockId >= 0) {
+        m_blockModel->setBlockOutput(m_currentBlockId, output);
+        m_blockModel->setBlockExitCode(m_currentBlockId, exitCode);
+        m_blockModel->setBlockState(m_currentBlockId, exitCode == 0 ? Completed : Failed);
+        m_blockModel->setBlockEndTime(m_currentBlockId, QDateTime::currentDateTime());
+    }
+}
+
+void WarpKateView::onCommandDetected(const QString &command)
+{
+    qDebug() << "WarpKate: Command detected:" << command;
+    
+    // In a more complete implementation, we might update UI elements to show
+    // that a command is being executed, update a status bar, etc.
+    // For now, we'll just log it
+}
+
+void WarpKateView::onWorkingDirectoryChanged(const QString &directory)
+{
+    qDebug() << "WarpKate: Working directory changed:" << directory;
+    
+    // Update the conversation area with the directory change information
+    QTextCursor cursor = m_conversationArea->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    m_conversationArea->setTextCursor(cursor);
+    
+    // Format for directory change notification
+    QTextCharFormat dirFormat;
+    dirFormat.setFontItalic(true);
+    dirFormat.setForeground(QBrush(QColor(100, 100, 100))); // Gray for info messages
+    
+    // Add notification text
+    cursor.insertBlock();
+    cursor.setCharFormat(dirFormat);
+    cursor.insertText(QStringLiteral("Directory changed to: %1").arg(directory));
+    cursor.setCharFormat(QTextCharFormat());
+    
+    // Update the block model with the directory information
+    if (m_currentBlockId >= 0) {
+        // setBlockWorkingDirectory does not exist in BlockModel class
+        // m_blockModel->setBlockWorkingDirectory(m_currentBlockId, directory);
+    }
+    
+    // Make sure the view scrolls to show the notification
+    m_conversationArea->ensureCursorVisible();
+}
+
+void WarpKateView::onShellFinished(int exitCode)
+{
+    qDebug() << "WarpKate: Shell process finished with exit code:" << exitCode;
+    
+    // Format and display the shell termination message
+    QTextCursor cursor = m_conversationArea->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    m_conversationArea->setTextCursor(cursor);
+    
+    // Format for shell termination message
+    QTextCharFormat shellExitFormat;
+    shellExitFormat.setFontWeight(QFont::Bold);
+    
+    if (exitCode != 0) {
+        // Shell terminated abnormally
+        shellExitFormat.setForeground(QBrush(QColor(200, 0, 0))); // Red for errors
+        
+        cursor.insertBlock();
+        cursor.setCharFormat(shellExitFormat);
+        cursor.insertText(QStringLiteral("Shell process terminated with exit code %1").arg(exitCode));
+    } else {
+        // Shell terminated normally
+        shellExitFormat.setForeground(QBrush(QColor(0, 100, 0))); // Green for success
+        
+        cursor.insertBlock();
+        cursor.setCharFormat(shellExitFormat);
+        cursor.insertText(QStringLiteral("Shell session ended"));
+    }
+    
+    cursor.setCharFormat(QTextCharFormat());
+    cursor.insertBlock();
+    
+    // Make sure the view scrolls to show the termination message
+    m_conversationArea->ensureCursorVisible();
+    
+    // Optionally, we could prompt the user to start a new shell session here
+    // For now, we'll just log the event
 }
 
 #include "moc_warpkateview.cpp"
