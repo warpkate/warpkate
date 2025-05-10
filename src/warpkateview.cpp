@@ -5,9 +5,9 @@
 
 #include "warpkateview.h"
 #include "warpkateplugin.h"
-// These will be implemented later:
-// #include "terminalemulator.h"
-// #include "blockmodel.h"
+#include "terminalemulator.h"
+#include "blockmodel.h"
+#include "terminalblockview.h"
 
 #include <KLocalizedString>
 #include <KActionCollection>
@@ -57,6 +57,10 @@ WarpKateView::WarpKateView(WarpKatePlugin *plugin, KTextEditor::MainWindow *main
 WarpKateView::~WarpKateView()
 {
     m_mainWindow->guiFactory()->removeClient(this);
+    
+    // Clean up components
+    delete m_blockModel;
+    delete m_terminalEmulator;
     
     if (m_dockWidget) {
         delete m_dockWidget;
@@ -121,13 +125,68 @@ void WarpKateView::setupActions()
 
 void WarpKateView::setupTerminal()
 {
-    // This is a placeholder for now
-    // In the future, we'll initialize the actual terminal emulator here
-    qDebug() << "WarpKate: Setting up terminal emulation (placeholder)";
+    qDebug() << "WarpKate: Setting up terminal components";
     
-    // Terminal components will be initialized here:
-    // m_terminalEmulator = new TerminalEmulator(m_terminalWidget);
-    // m_blockModel = new BlockModel(this);
+    // Clear existing layout
+    if (m_terminalWidget->layout()) {
+        QLayoutItem *item;
+        while ((item = m_terminalWidget->layout()->takeAt(0)) != nullptr) {
+            delete item->widget();
+            delete item;
+        }
+        delete m_terminalWidget->layout();
+    }
+    
+    // Create new layout
+    QVBoxLayout *layout = new QVBoxLayout(m_terminalWidget);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    
+    // Initialize terminal components
+    m_terminalEmulator = new TerminalEmulator(m_terminalWidget);
+    m_blockModel = new BlockModel(this);
+    m_terminalBlockView = new TerminalBlockView(m_terminalWidget);
+    
+    // Connect components
+    m_terminalBlockView->setTerminalEmulator(m_terminalEmulator);
+    m_terminalBlockView->setBlockModel(m_blockModel);
+    m_blockModel->setTerminalEmulator(m_terminalEmulator);
+    
+    // Add terminal view to layout
+    layout->addWidget(m_terminalBlockView);
+    
+    // Connect command execution signal from terminal view
+    connect(m_terminalBlockView, &TerminalBlockView::commandExecuted, 
+            this, [this](const QString &cmd) {
+                qDebug() << "WarpKate: Command executed:" << cmd;
+            });
+    
+    // Connect block selection signal from terminal view
+    connect(m_terminalBlockView, &TerminalBlockView::blockSelected,
+            this, [this](int blockId) {
+                qDebug() << "WarpKate: Block selected:" << blockId;
+            });
+    
+    // Initialize and start terminal
+    // Use reasonable default size for the terminal (80 columns x 24 rows)
+    m_terminalEmulator->initialize(24, 80);
+    
+    // Start shell with current document directory if available
+    QString initialWorkingDir;
+    KTextEditor::View *view = m_mainWindow->activeView();
+    if (view && view->document() && view->document()->url().isLocalFile()) {
+        QFileInfo fileInfo(view->document()->url().toLocalFile());
+        if (fileInfo.exists()) {
+            initialWorkingDir = fileInfo.dir().absolutePath();
+        }
+    }
+    
+    // Default to home directory if no document is open
+    if (initialWorkingDir.isEmpty()) {
+        initialWorkingDir = QDir::homePath();
+    }
+    
+    m_terminalEmulator->startShell(QString(), initialWorkingDir);
 }
 
 void WarpKateView::showTerminal()
@@ -157,22 +216,27 @@ void WarpKateView::toggleTerminal()
     }
 }
 
-void WarpKateView::executeCurrentText()
+QString WarpKateView::getCurrentText()
 {
     KTextEditor::View *view = m_mainWindow->activeView();
     if (!view) {
-        return;
+        return QString();
     }
     
-    QString command;
+    QString text;
     if (view->selection()) {
-        command = view->selectionText();
+        text = view->selectionText();
     } else {
         KTextEditor::Document *doc = view->document();
         int line = view->cursorPosition().line();
-        command = doc->line(line);
+        text = doc->line(line);
     }
     
+    return text;
+}
+
+void WarpKateView::executeCommand(const QString &command)
+{
     if (command.isEmpty()) {
         return;
     }
@@ -180,42 +244,44 @@ void WarpKateView::executeCurrentText()
     // Make terminal visible if it's not
     showTerminal();
     
-    qDebug() << "WarpKate: Executing command (placeholder):" << command;
+    qDebug() << "WarpKate: Executing command:" << command;
     
-    // This will be implemented when the terminal emulator is ready:
-    // if (m_terminalEmulator) {
-    //     m_terminalEmulator->executeCommand(command);
-    // }
+    if (m_terminalBlockView) {
+        m_terminalBlockView->executeCommand(command);
+    }
+}
+
+void WarpKateView::executeCurrentText()
+{
+    QString command = getCurrentText();
+    executeCommand(command);
 }
 
 void WarpKateView::clearTerminal()
 {
-    qDebug() << "WarpKate: Clearing terminal (placeholder)";
+    qDebug() << "WarpKate: Clearing terminal";
     
-    // This will be implemented when the terminal emulator is ready:
-    // if (m_terminalEmulator) {
-    //     m_terminalEmulator->clear();
-    // }
+    if (m_terminalBlockView) {
+        m_terminalBlockView->clear();
+    }
 }
 
 void WarpKateView::previousBlock()
 {
-    qDebug() << "WarpKate: Navigating to previous block (placeholder)";
+    qDebug() << "WarpKate: Navigating to previous block";
     
-    // This will be implemented when the block model is ready:
-    // if (m_blockModel) {
-    //     m_blockModel->navigateToPreviousBlock();
-    // }
+    if (m_terminalBlockView) {
+        m_terminalBlockView->navigateToPreviousBlock();
+    }
 }
 
 void WarpKateView::nextBlock()
 {
-    qDebug() << "WarpKate: Navigating to next block (placeholder)";
+    qDebug() << "WarpKate: Navigating to next block";
     
-    // This will be implemented when the block model is ready:
-    // if (m_blockModel) {
-    //     m_blockModel->navigateToNextBlock();
-    // }
+    if (m_terminalBlockView) {
+        m_terminalBlockView->navigateToNextBlock();
+    }
 }
 
 void WarpKateView::onDocumentChanged(KTextEditor::Document *document)
@@ -225,11 +291,18 @@ void WarpKateView::onDocumentChanged(KTextEditor::Document *document)
     }
     
     // Handle document change events
-    // For now, this is just a placeholder
     qDebug() << "WarpKate: Document changed:" << document->documentName();
     
-    // We could potentially update terminal context based on document
-    // or set working directory to document's path
+    // Set working directory to document's path if available
+    if (m_terminalEmulator && document->url().isLocalFile()) {
+        QFileInfo fileInfo(document->url().toLocalFile());
+        if (fileInfo.exists()) {
+            QString dir = fileInfo.dir().absolutePath();
+            // Execute cd command to change working directory
+            m_terminalEmulator->executeCommand(QString("cd \"%1\"").arg(dir));
+            qDebug() << "WarpKate: Setting working directory to:" << dir;
+        }
+    }
 }
 
 #include "moc_warpkateview.cpp"

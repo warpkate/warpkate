@@ -18,6 +18,7 @@
 class WarpKatePlugin;
 class TerminalEmulator;
 class BlockModel;
+class TerminalBlockView;
 class QAction;
 class QToolButton;
 
@@ -96,6 +97,18 @@ private:
      * Create and set up the terminal widget
      */
     void setupTerminal();
+    
+    /**
+     * Execute a command in the terminal
+     * @param command Command to execute
+     */
+    void executeCommand(const QString &command);
+    
+    /**
+     * Get the current text from the editor (current line or selection)
+     * @return Current text
+     */
+    QString getCurrentText();
 
 private:
     WarpKatePlugin *m_plugin;
@@ -108,6 +121,7 @@ private:
     // Terminal components
     TerminalEmulator *m_terminalEmulator;
     BlockModel *m_blockModel;
+    TerminalBlockView *m_terminalBlockView;
     
     // Actions
     QAction *m_showTerminalAction;
