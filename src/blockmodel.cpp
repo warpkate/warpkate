@@ -135,7 +135,7 @@ int BlockModel::createBlock(const QString &command, const QString &workingDirect
     }
     
     // Emit signal
-    emit blockCreated(blockId);
+    Q_EMIT blockCreated(blockId);
     
     return blockId;
 }
@@ -176,14 +176,14 @@ bool BlockModel::setCurrentBlock(int id)
     // Update the old and new blocks to reflect current status
     if (oldIndex >= 0) {
         QModelIndex oldModelIndex = index(oldIndex, 0);
-        emit dataChanged(oldModelIndex, oldModelIndex, {IsCurrentRole});
+        Q_EMIT dataChanged(oldModelIndex, oldModelIndex, {IsCurrentRole});
     }
     
     QModelIndex newModelIndex = index(newIndex, 0);
-    emit dataChanged(newModelIndex, newModelIndex, {IsCurrentRole});
+    Q_EMIT dataChanged(newModelIndex, newModelIndex, {IsCurrentRole});
     
     // Emit signal
-    emit currentBlockChanged(id);
+    Q_EMIT currentBlockChanged(id);
     
     return true;
 }
@@ -252,8 +252,8 @@ bool BlockModel::setBlockCommand(int id, const QString &command)
     
     // Notify views
     QModelIndex modelIndex = this->index(index, 0);
-    emit dataChanged(modelIndex, modelIndex, {CommandRole});
-    emit blockChanged(id);
+    Q_EMIT dataChanged(modelIndex, modelIndex, {CommandRole});
+    Q_EMIT blockChanged(id);
     
     return true;
 }
@@ -270,8 +270,8 @@ bool BlockModel::appendBlockOutput(int id, const QString &output)
     
     // Notify views
     QModelIndex modelIndex = this->index(index, 0);
-    emit dataChanged(modelIndex, modelIndex, {OutputRole});
-    emit blockChanged(id);
+    Q_EMIT dataChanged(modelIndex, modelIndex, {OutputRole});
+    Q_EMIT blockChanged(id);
     
     return true;
 }
@@ -288,9 +288,9 @@ bool BlockModel::setBlockState(int id, BlockState state)
     
     // Notify views
     QModelIndex modelIndex = this->index(index, 0);
-    emit dataChanged(modelIndex, modelIndex, {StateRole});
-    emit blockStateChanged(id, state);
-    emit blockChanged(id);
+    Q_EMIT dataChanged(modelIndex, modelIndex, {StateRole});
+    Q_EMIT blockStateChanged(id, state);
+    Q_EMIT blockChanged(id);
     
     return true;
 }
@@ -307,8 +307,8 @@ bool BlockModel::setBlockExitCode(int id, int exitCode)
     
     // Notify views
     QModelIndex modelIndex = this->index(index, 0);
-    emit dataChanged(modelIndex, modelIndex, {ExitCodeRole});
-    emit blockChanged(id);
+    Q_EMIT dataChanged(modelIndex, modelIndex, {ExitCodeRole});
+    Q_EMIT blockChanged(id);
     
     return true;
 }
@@ -325,8 +325,8 @@ bool BlockModel::setBlockStartTime(int id, const QDateTime &startTime)
     
     // Notify views
     QModelIndex modelIndex = this->index(index, 0);
-    emit dataChanged(modelIndex, modelIndex, {StartTimeRole, DurationRole});
-    emit blockChanged(id);
+    Q_EMIT dataChanged(modelIndex, modelIndex, {StartTimeRole, DurationRole});
+    Q_EMIT blockChanged(id);
     
     return true;
 }
@@ -343,8 +343,8 @@ bool BlockModel::setBlockEndTime(int id, const QDateTime &endTime)
     
     // Notify views
     QModelIndex modelIndex = this->index(index, 0);
-    emit dataChanged(modelIndex, modelIndex, {EndTimeRole, DurationRole});
-    emit blockChanged(id);
+    Q_EMIT dataChanged(modelIndex, modelIndex, {EndTimeRole, DurationRole});
+    Q_EMIT blockChanged(id);
     
     return true;
 }
@@ -514,8 +514,8 @@ void BlockModel::onWorkingDirectoryChanged(const QString &directory)
                 
                 // Notify views
                 QModelIndex modelIndex = this->index(index, 0);
-                emit dataChanged(modelIndex, modelIndex, {WorkingDirectoryRole});
-                emit blockChanged(m_blocks[index].id);
+                Q_EMIT dataChanged(modelIndex, modelIndex, {WorkingDirectoryRole});
+                Q_EMIT blockChanged(m_blocks[index].id);
                 break;
             }
         }
@@ -550,8 +550,8 @@ bool BlockModel::setBlockOutput(int id, const QString &output)
     
     // Notify views
     QModelIndex modelIndex = this->index(index, 0);
-    emit dataChanged(modelIndex, modelIndex, {OutputRole});
-    emit blockChanged(id);
+    Q_EMIT dataChanged(modelIndex, modelIndex, {OutputRole});
+    Q_EMIT blockChanged(id);
     
     return true;
 }
@@ -569,7 +569,7 @@ int BlockModel::findBlockIndex(int id) const
     return -1;
 }
 
-int BlockModel::generateBlockId() const
+int BlockModel::generateBlockId()
 {
     // Use the next available ID
     return m_nextBlockId++;
@@ -589,7 +589,7 @@ void BlockModel::updateBlockMetadata(const QModelIndex &index)
     // such as parsing command output for context, detecting errors, etc.
     
     // Notify that the block has changed
-    emit blockChanged(block.id);
+    Q_EMIT blockChanged(block.id);
 }
 
 #include "moc_blockmodel.cpp"

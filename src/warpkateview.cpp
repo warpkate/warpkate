@@ -20,6 +20,8 @@
 #include <QLabel>
 #include <QDebug>
 #include <QToolButton>
+#include <QFileInfo>
+#include <QDir>
 
 WarpKateView::WarpKateView(WarpKatePlugin *plugin, KTextEditor::MainWindow *mainWindow)
     : QObject(mainWindow)
@@ -83,7 +85,8 @@ void WarpKateView::setupUI()
     layout->addWidget(placeholderLabel);
     
     m_dockWidget->setWidget(m_terminalWidget);
-    m_mainWindow->addDockWidget(Qt::BottomDockWidgetArea, m_dockWidget);
+    // Use addWidget instead as KTextEditor::MainWindow doesn't have addDockWidget
+    m_mainWindow->addWidget(m_dockWidget);
     
     // Hide initially
     m_dockWidget->hide();
@@ -150,7 +153,8 @@ void WarpKateView::setupTerminal()
     // Connect components
     m_terminalBlockView->setTerminalEmulator(m_terminalEmulator);
     m_terminalBlockView->setBlockModel(m_blockModel);
-    m_blockModel->setTerminalEmulator(m_terminalEmulator);
+    // Comment out this line as BlockModel doesn't have setTerminalEmulator method
+    // m_blockModel->setTerminalEmulator(m_terminalEmulator);
     
     // Add terminal view to layout
     layout->addWidget(m_terminalBlockView);
@@ -299,7 +303,7 @@ void WarpKateView::onDocumentChanged(KTextEditor::Document *document)
         if (fileInfo.exists()) {
             QString dir = fileInfo.dir().absolutePath();
             // Execute cd command to change working directory
-            m_terminalEmulator->executeCommand(QString("cd \"%1\"").arg(dir));
+            m_terminalEmulator->executeCommand(QString(u"cd \"%1\"").arg(dir));
             qDebug() << "WarpKate: Setting working directory to:" << dir;
         }
     }

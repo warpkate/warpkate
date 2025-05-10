@@ -8,10 +8,12 @@
 
 #include <QObject>
 #include <QColor>
+#include <QDateTime>
 #include <QHash>
 #include <QList>
 #include <QMap>
 #include <QPoint>
+#include <QRegularExpression>
 #include <QSize>
 #include <QString>
 #include <QStringList>
@@ -19,6 +21,7 @@
 #include <QWidget>
 #include <QProcess>
 #include <QSocketNotifier>
+#include <QLatin1Char>
 
 /**
  * Terminal character format attributes
@@ -62,7 +65,7 @@ struct TerminalCell {
     QChar character;               ///< The character in this cell
     TerminalCharFormat format;     ///< Format of this cell
     
-    TerminalCell() : character(' ') {}
+    TerminalCell() : character(QLatin1Char(' ')) {}
     TerminalCell(QChar ch, const TerminalCharFormat &fmt) : character(ch), format(fmt) {}
     
     bool operator==(const TerminalCell &other) const {
@@ -84,7 +87,7 @@ typedef QVector<TerminalCell> TerminalLine;
  */
 enum CursorStyle {
     Block,
-    Underline,
+    UnderlineCursor,
     IBeam
 };
 
@@ -541,7 +544,11 @@ private:
     // Selection and clipboard
     QPoint m_selectionStart;                   ///< Start position of the selection
     QPoint m_selectionEnd;                     ///< End position of the selection
-    bool m_hasSelection;                       ///< Whether there is an active selection
+    bool m_hasSelection;                   ///< Whether there is an active selection
+    
+    // Saved cursor state
+    QPoint m_savedCursorPosition;              ///< Saved cursor position
+    TerminalCharFormat m_savedFormat;          ///< Saved character format
     
     // Color palette
     QMap<int, QColor> m_colorPalette;          ///< Terminal color palette (0-255)

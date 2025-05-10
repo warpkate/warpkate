@@ -7,7 +7,6 @@
 #include "warpkateview.h"
 
 #include <KPluginFactory>
-#include <KPluginLoader>
 #include <KLocalizedString>
 #include <KXMLGUIFactory>
 #include <KActionCollection>
@@ -47,9 +46,8 @@ int WarpKatePlugin::configPages() const
     return 1;
 }
 
-KTextEditor::ConfigPage *WarpKatePlugin::configPage(int number, QWidget *parent, const char *name)
+KTextEditor::ConfigPage *WarpKatePlugin::configPage(int number, QWidget *parent)
 {
-    Q_UNUSED(name);
     
     if (number != 0) {
         return nullptr;

@@ -8,8 +8,8 @@ set(warpkate_SRCS
     terminalemulator.h
     blockmodel.cpp
     blockmodel.h
-    warpprotocol.cpp
-    warpprotocol.h
+    terminalblockview.cpp
+    terminalblockview.h
 )
 
 # UI files
@@ -19,7 +19,7 @@ ki18n_wrap_ui(warpkate_SRCS
 )
 
 # Resources
-qt5_add_resources(warpkate_SRCS warpkate.qrc)
+qt6_add_resources(warpkate_SRCS warpkate.qrc)
 
 # Add the plugin library
 add_library(warpkateplugin MODULE ${warpkate_SRCS})
@@ -34,21 +34,26 @@ generate_export_header(warpkateplugin
 # Target properties
 set_target_properties(warpkateplugin PROPERTIES
     OUTPUT_NAME "warpkateplugin"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/kf5/ktexteditor"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/kf6/ktexteditor"
 )
 
 # Link against required libraries
 target_link_libraries(warpkateplugin
     PUBLIC
-        KF5::TextEditor
-        KF5::Parts
-        KF5::I18n
-        KF5::Config
-        KF5::KIOWidgets
+        KF6TextEditor
+        KF6Parts
+        KF6I18n
+        KF6ConfigCore
+        KF6ConfigGui
+        KF6::KIOCore
+        KF6::KIOWidgets
+        KF6::KIOFileWidgets
+        KF6CoreAddons
+        KF6XmlGui
     PRIVATE
-        Qt5::Core
-        Qt5::Widgets
-        Qt5::Network
+        Qt6::Core
+        Qt6::Widgets
+        Qt6::Network
 )
 
 # Include directories
@@ -56,6 +61,23 @@ target_include_directories(warpkateplugin
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_BINARY_DIR}
+        /usr/include
+        /usr/include/KF6
+        /usr/include/KF6/KTextEditor
+        /usr/include/KF6/KParts
+        /usr/include/KF6/KXmlGui
+        /usr/include/KF6/KIO
+        /usr/include/KF6/KService
+        /usr/include/KF6/KConfigWidgets
+        /usr/include/KF6/KCoreAddons
+        /usr/include/KF6/KSyntaxHighlighting
+        /usr/include/KF6/KI18n
+        /usr/include/KF6/KConfigGui
+        /usr/include/KF6/KWidgetsAddons
+        /usr/include/KF6/KConfigCore
+        /usr/include/KF6/KConfig
+        ${KF6TextEditor_INCLUDE_DIRS}
+        ${Qt6Core_INCLUDE_DIRS}
 )
 
 # Install the plugin

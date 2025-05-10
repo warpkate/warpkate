@@ -9,6 +9,7 @@
 #include <QClipboard>
 #include <QDateTime>
 #include <QDebug>
+#include <QDir>
 #include <QRegularExpression>
 #include <QSocketNotifier>
 
@@ -87,15 +88,15 @@ TerminalEmulator::TerminalEmulator(QWidget *parent)
     connect(&m_cursorBlinkTimer, &QTimer::timeout, this, [this]() {
         // Toggle cursor visibility and emit signal for redraw
         m_cursorVisible = !m_cursorVisible;
-        emit redrawRequired();
+        Q_EMIT redrawRequired();
     });
     
     connect(&m_commandDetectionTimer, &QTimer::timeout, this, &TerminalEmulator::detectCommand);
     
     // Set up regular expressions for detection
-    m_promptRegex = QRegularExpression(R"(^\s*[\w\-]+(:\s*[\w~/\-.]+)?\s*[\$#%>](\s+|$))");
-    m_cwdRegex = QRegularExpression(R"(^([a-zA-Z]:|~|/)[^:]*$)");
-    m_exitCodeRegex = QRegularExpression(R"(\[(\d+)\])");
+    m_promptRegex = QRegularExpression(QLatin1String(R"(^\s*[\w\-]+(:\s*[\w~/\-.]+)?\s*[\$#%>](\s+|$))"));
+    m_cwdRegex = QRegularExpression(QLatin1String(R"(^([a-zA-Z]:|~|/)[^:]*$)"));
+    m_exitCodeRegex = QRegularExpression(QLatin1String(R"(\[(\d+)\])"));
 }
 
 TerminalEmulator::~TerminalEmulator()
@@ -171,7 +172,7 @@ bool TerminalEmulator::startShell(const QString &shellCommand, const QString &in
         if (envShell) {
             shell = QString::fromUtf8(envShell);
         } else {
-            shell = "/bin/bash";
+            shell = QLatin1String("/bin/bash");
         }
     }
     
@@ -241,7 +242,7 @@ bool TerminalEmulator::startShell(const QString &shellCommand, const QString &in
         setenv("TERM", "xterm-256color", 1);
         
         // Execute the shell
-        QStringList shellParts = shell.split(' ');
+        QStringList shellParts = shell.split(QLatin1Char(' '));
         QString shellProgram = shellParts.takeFirst();
         
         QVector<char*> args;
@@ -312,7 +313,7 @@ void TerminalEmulator::resize(int rows, int cols)
         
         // Fill the rest with spaces
         while (newLine.size() < cols) {
-            newLine.append(TerminalCell(' ', m_currentFormat));
+            newLine.append(TerminalCell(QChar(QLatin1Char(' ')), m_currentFormat));
         }
         
         newScreen.append(newLine);
@@ -340,7 +341,7 @@ void TerminalEmulator::resize(int rows, int cols)
             }
             
             while (newLine.size() < cols) {
-                newLine.append(TerminalCell(' ', m_currentFormat));
+                newLine.append(TerminalCell(QChar(QLatin1Char(' ')), m_currentFormat));
             }
             
             newAltScreen.append(newLine);
@@ -374,8 +375,8 @@ void TerminalEmulator::resize(int rows, int cols)
     }
     
     // Emit size changed signal
-    emit sizeChanged(m_terminalSize);
-    emit redrawRequired();
+    Q_EMIT sizeChanged(m_terminalSize);
+    Q_EMIT redrawRequired();
 }
 
 void TerminalEmulator::processInput(const QString &text)
@@ -589,7 +590,7 @@ void TerminalEmulator::executeCommand(const QString &command, bool addNewline)
     if (m_blockModeEnabled) {
         m_currentBlockId++;
         // Notify that a new command was started
-        emit commandDetected(command);
+        Q_EMIT commandDetected(command);
     }
 }
 
@@ -614,7 +615,7 @@ void TerminalEmulator::readFromShell()
         }
         
         // Emit signal for raw output
-        emit outputAvailable(QString::fromUtf8(data));
+        Q_EMIT outputAvailable(QString::fromUtf8(data));
         
         // Schedule command detection
         m_commandDetectionTimer.start(100);
@@ -634,7 +635,7 @@ void TerminalEmulator::readFromShell()
             m_ptyFd = -1;
         }
         
-        emit shellFinished(m_lastExitCode);
+        Q_EMIT shellFinished(m_lastExitCode);
     }
 }
 
@@ -711,7 +712,7 @@ void TerminalEmulator::processOutputData(const QByteArray &data)
                 
             case '\a': // Bell
                 // Trigger terminal bell
-                emit bellTriggered();
+                Q_EMIT bellTriggered();
                 break;
                 
             case '\f': // Form feed (clear screen)
@@ -721,13 +722,13 @@ void TerminalEmulator::processOutputData(const QByteArray &data)
                 
             default:
                 // Regular character - put it at the current cursor position
-                putCharacter(QChar(ch));
+                putCharacter(QChar(QLatin1Char(ch)));
                 break;
         }
     }
     
     // Trigger redraw
-    emit redrawRequired();
+    Q_EMIT redrawRequired();
 }
 
 int TerminalEmulator::processEscapeSequence(const QByteArray &sequence)
@@ -894,14 +895,14 @@ int TerminalEmulator::processCSI(const QByteArray &sequence)
                     if (currentY < activeScreen.size()) {
                         TerminalLine &line = activeScreen[currentY];
                         for (int i = currentX; i < line.size(); ++i) {
-                            line[i] = TerminalCell(' ', m_currentFormat);
+                            line[i] = TerminalCell(QChar(QLatin1Char(' ')), m_currentFormat);
                         }
                         
                         // Clear all lines below
                         for (int y = currentY + 1; y < activeScreen.size(); ++y) {
                             TerminalLine &clearLine = activeScreen[y];
                             for (int x = 0; x < clearLine.size(); ++x) {
-                                clearLine[x] = TerminalCell(' ', m_currentFormat);
+                                clearLine[x] = TerminalCell(QChar(QLatin1Char(' ')), m_currentFormat);
                             }
                         }
                     }
@@ -916,7 +917,7 @@ int TerminalEmulator::processCSI(const QByteArray &sequence)
                     for (int y = 0; y < currentY && y < activeScreen.size(); ++y) {
                         TerminalLine &clearLine = activeScreen[y];
                         for (int x = 0; x < clearLine.size(); ++x) {
-                            clearLine[x] = TerminalCell(' ', m_currentFormat);
+                            clearLine[x] = TerminalCell(QChar(QLatin1Char(' ')), m_currentFormat);
                         }
                     }
                     
@@ -926,7 +927,7 @@ int TerminalEmulator::processCSI(const QByteArray &sequence)
                         int currentX = qMin(m_cursorPosition.x(), line.size() - 1);
                         
                         for (int i = 0; i <= currentX; ++i) {
-                            line[i] = TerminalCell(' ', m_currentFormat);
+                            line[i] = TerminalCell(QChar(QLatin1Char(' ')), m_currentFormat);
                         }
                     }
                     break;
@@ -937,7 +938,7 @@ int TerminalEmulator::processCSI(const QByteArray &sequence)
                     for (int y = 0; y < activeScreen.size(); ++y) {
                         TerminalLine &clearLine = activeScreen[y];
                         for (int x = 0; x < clearLine.size(); ++x) {
-                            clearLine[x] = TerminalCell(' ', m_currentFormat);
+                            clearLine[x] = TerminalCell(QChar(QLatin1Char(' ')), m_currentFormat);
                         }
                     }
                     break;
@@ -961,19 +962,19 @@ int TerminalEmulator::processCSI(const QByteArray &sequence)
             switch (mode) {
                 case 0: // From cursor to end of line
                     for (int i = currentX; i < line.size(); ++i) {
-                        line[i] = TerminalCell(' ', m_currentFormat);
+                        line[i] = TerminalCell(QChar(QLatin1Char(' ')), m_currentFormat);
                     }
                     break;
                     
                 case 1: // From start of line to cursor
                     for (int i = 0; i <= currentX && i < line.size(); ++i) {
-                        line[i] = TerminalCell(' ', m_currentFormat);
+                        line[i] = TerminalCell(QChar(QLatin1Char(' ')), m_currentFormat);
                     }
                     break;
                     
                 case 2: // Entire line
                     for (int i = 0; i < line.size(); ++i) {
-                        line[i] = TerminalCell(' ', m_currentFormat);
+                        line[i] = TerminalCell(QChar(QLatin1Char(' ')), m_currentFormat);
                     }
                     break;
             }
@@ -1126,7 +1127,7 @@ int TerminalEmulator::processCSI(const QByteArray &sequence)
 
 int TerminalEmulator::processOSC(const QByteArray &sequence)
 {
-    // OSC sequences are of the form: ESC ] <parameters> BEL or ESC ] <parameters> ESC \
+    // OSC sequences are of the form: ESC ] <parameters> BEL or ESC ] <parameters> ESC \\
     
     // Find the end of the sequence (BEL or ST)
     int endPos = 2; // Start after "ESC ]"
@@ -1169,7 +1170,7 @@ int TerminalEmulator::processOSC(const QByteArray &sequence)
         case 0: // Set window title and icon name
         case 2: // Set window title
             m_terminalTitle = param;
-            emit titleChanged(m_terminalTitle);
+            Q_EMIT titleChanged(m_terminalTitle);
             break;
             
         case 1: // Set icon name
@@ -1182,7 +1183,7 @@ int TerminalEmulator::processOSC(const QByteArray &sequence)
             
         case 7: // Set current directory for shell integration
             m_workingDirectory = param;
-            emit workingDirectoryChanged(m_workingDirectory);
+            Q_EMIT workingDirectoryChanged(m_workingDirectory);
             break;
             
         default:
@@ -1425,7 +1426,7 @@ void TerminalEmulator::putCharacter(QChar ch)
     if (m_cursorPosition.x() >= currentLine.size()) {
         // Extend the line with spaces
         while (currentLine.size() <= m_cursorPosition.x()) {
-            currentLine.append(TerminalCell(' ', m_currentFormat));
+            currentLine.append(TerminalCell(QChar(QLatin1Char(' ')), m_currentFormat));
         }
     }
     
@@ -1472,7 +1473,7 @@ void TerminalEmulator::setCursorPositionInternal(int x, int y, bool clampToScree
     
     // If position changed, emit signal
     if (oldPos != m_cursorPosition) {
-        emit cursorPositionChanged(m_cursorPosition);
+        Q_EMIT cursorPositionChanged(m_cursorPosition);
     }
 }
 
@@ -1519,7 +1520,7 @@ TerminalLine TerminalEmulator::createBlankLine() const
     line.reserve(m_terminalSize.width());
     
     for (int i = 0; i < m_terminalSize.width(); ++i) {
-        line.append(TerminalCell(' ', m_currentFormat));
+        line.append(TerminalCell(QChar(QLatin1Char(' ')), m_currentFormat));
     }
     
     return line;
@@ -1572,7 +1573,7 @@ void TerminalEmulator::clear()
     for (int i = 0; i < activeScreen.size(); ++i) {
         TerminalLine &line = activeScreen[i];
         for (int j = 0; j < line.size(); ++j) {
-            line[j] = TerminalCell(' ', m_currentFormat);
+            line[j] = TerminalCell(QChar(QLatin1Char(' ')), m_currentFormat);
         }
     }
     
@@ -1601,7 +1602,7 @@ QChar TerminalEmulator::characterAt(int x, int y) const
     
     // Check if the position is within the line
     if (x >= line.size()) {
-        return QChar(' ');
+        return QChar(QLatin1Char(' '));
     }
     
     return line[x].character;
@@ -1640,7 +1641,7 @@ CursorStyle TerminalEmulator::cursorStyle() const
 void TerminalEmulator::setCursorStyle(CursorStyle style)
 {
     m_cursorStyle = style;
-    emit redrawRequired();
+    Q_EMIT redrawRequired();
 }
 
 bool TerminalEmulator::isCursorVisible() const
@@ -1651,9 +1652,449 @@ bool TerminalEmulator::isCursorVisible() const
 void TerminalEmulator::setCursorVisible(bool visible)
 {
     m_cursorVisible = visible;
-    emit redrawRequired();
+    Q_EMIT redrawRequired();
 }
 
 bool TerminalEmulator::isAlternateScreenActive() const
 {
     return m_alternateScreenActive;
+}
+
+void TerminalEmulator::shellProcessFinished(int exitCode, QProcess::ExitStatus exitStatus)
+{
+    m_busy = false;
+    m_lastExitCode = exitCode;
+    
+    // Clean up the process resources
+    m_shellPid = 0;
+    
+    if (m_ptyNotifier) {
+        m_ptyNotifier->setEnabled(false);
+    }
+    
+    if (m_ptyFd >= 0) {
+        ::close(m_ptyFd);
+        m_ptyFd = -1;
+    }
+    
+    // Emit the shell finished signal
+    Q_EMIT shellFinished(exitCode);
+}
+
+void TerminalEmulator::shellProcessError(QProcess::ProcessError error)
+{
+    qWarning() << "Shell process error:" << error;
+    
+    // Mark the terminal as not busy
+    m_busy = false;
+    
+    // Clean up
+    m_shellPid = 0;
+    
+    if (m_ptyNotifier) {
+        m_ptyNotifier->setEnabled(false);
+    }
+    
+    if (m_ptyFd >= 0) {
+        ::close(m_ptyFd);
+        m_ptyFd = -1;
+    }
+    
+    // Use a generic error code for shell errors
+    m_lastExitCode = 1;
+    Q_EMIT shellFinished(m_lastExitCode);
+}
+
+void TerminalEmulator::copyToClipboard()
+{
+    if (!m_hasSelection) {
+        return;
+    }
+    
+    QString selectedText;
+    QPoint start = m_selectionStart;
+    QPoint end = m_selectionEnd;
+    
+    // Ensure start is before end
+    if (start.y() > end.y() || (start.y() == end.y() && start.x() > end.x())) {
+        qSwap(start, end);
+    }
+    
+    // Get the active screen buffer
+    const QVector<TerminalLine> &activeScreen = m_alternateScreenActive ? m_alternateScreen : m_screen;
+    
+    // Extract selected text
+    for (int y = start.y(); y <= end.y() && y < activeScreen.size(); ++y) {
+        const TerminalLine &line = activeScreen[y];
+        
+        int lineStart = (y == start.y()) ? start.x() : 0;
+        int lineEnd = (y == end.y()) ? end.x() : line.size() - 1;
+        
+        lineStart = qMin(lineStart, line.size() - 1);
+        lineEnd = qMin(lineEnd, line.size() - 1);
+        
+        for (int x = lineStart; x <= lineEnd; ++x) {
+            selectedText += line[x].character;
+        }
+        
+        // Add newline between lines, but not after the last line
+        if (y < end.y()) {
+            selectedText += QLatin1Char('\n');
+        }
+    }
+    
+    // Copy to clipboard
+    QApplication::clipboard()->setText(selectedText);
+}
+
+void TerminalEmulator::pasteFromClipboard()
+{
+    if (m_ptyFd < 0 || !m_busy) {
+        return;
+    }
+    
+    // Get text from clipboard
+    QString text = QApplication::clipboard()->text();
+    if (text.isEmpty()) {
+        return;
+    }
+    
+    // Process and send the input
+    processInput(text);
+}
+
+void TerminalEmulator::selectAll()
+{
+    // Get the active screen buffer
+    const QVector<TerminalLine> &activeScreen = m_alternateScreenActive ? m_alternateScreen : m_screen;
+    
+    if (activeScreen.isEmpty()) {
+        return;
+    }
+    
+    // Set selection to cover the entire screen
+    m_selectionStart = QPoint(0, 0);
+    m_selectionEnd = QPoint(m_terminalSize.width() - 1, activeScreen.size() - 1);
+    m_hasSelection = true;
+    
+    // Trigger redraw to show selection
+    Q_EMIT redrawRequired();
+}
+
+bool TerminalEmulator::findText(const QString &text, bool caseSensitive, bool searchForward)
+{
+    if (text.isEmpty()) {
+        return false;
+    }
+    
+    // Get the active screen buffer
+    const QVector<TerminalLine> &activeScreen = m_alternateScreenActive ? m_alternateScreen : m_screen;
+    
+    Qt::CaseSensitivity cs = caseSensitive ? Qt::CaseSensitive : Qt::CaseInsensitive;
+    
+    // Starting position is current cursor
+    int startY = m_cursorPosition.y();
+    int startX = m_cursorPosition.x();
+    
+    if (searchForward) {
+        // Search forward from cursor position
+        for (int y = startY; y < activeScreen.size(); ++y) {
+            const TerminalLine &line = activeScreen[y];
+            
+            // Build the line as a string
+            QString lineText;
+            for (const TerminalCell &cell : line) {
+                lineText.append(cell.character);
+            }
+            
+            // Search in this line
+            int x = (y == startY) ? startX + 1 : 0;
+            int pos = lineText.indexOf(text, x, cs);
+            
+            if (pos >= 0) {
+                // Found a match
+                setCursorPositionInternal(pos, y);
+                
+                // Set selection to highlight the found text
+                m_selectionStart = QPoint(pos, y);
+                m_selectionEnd = QPoint(pos + text.length() - 1, y);
+                m_hasSelection = true;
+                
+                Q_EMIT redrawRequired();
+                return true;
+            }
+        }
+    } else {
+        // Search backward from cursor position
+        for (int y = startY; y >= 0; --y) {
+            const TerminalLine &line = activeScreen[y];
+            
+            // Build the line as a string
+            QString lineText;
+            for (const TerminalCell &cell : line) {
+                lineText.append(cell.character);
+            }
+            
+            // Search in this line
+            int x = (y == startY) ? startX - 1 : lineText.length() - 1;
+            int pos = lineText.lastIndexOf(text, x, cs);
+            
+            if (pos >= 0) {
+                // Found a match
+                setCursorPositionInternal(pos, y);
+                
+                // Set selection to highlight the found text
+                m_selectionStart = QPoint(pos, y);
+                m_selectionEnd = QPoint(pos + text.length() - 1, y);
+                m_hasSelection = true;
+                
+                Q_EMIT redrawRequired();
+                return true;
+            }
+        }
+    }
+    
+    // No match found
+    return false;
+}
+
+void TerminalEmulator::detectCommand()
+{
+    if (!m_busy) {
+        return;
+    }
+    
+    // Get the active screen buffer
+    const QVector<TerminalLine> &activeScreen = m_alternateScreenActive ? m_alternateScreen : m_screen;
+    
+    // Look for the command prompt pattern in recent lines
+    int maxLines = qMin(5, activeScreen.size());
+    for (int i = 0; i < maxLines; ++i) {
+        int lineIndex = activeScreen.size() - 1 - i;
+        if (lineIndex < 0) {
+            continue;
+        }
+        
+        // Convert the line to a string
+        QString lineText;
+        for (const TerminalCell &cell : activeScreen[lineIndex]) {
+            lineText.append(cell.character);
+        }
+        
+        // Check if it matches a prompt pattern
+        QRegularExpressionMatch match = m_promptRegex.match(lineText);
+        if (match.hasMatch()) {
+            // Found a prompt, which likely means a command has just finished or is about to start
+            
+            // If a command was executing, mark it as finished
+            if (m_commandExecuting) {
+                m_commandExecuting = false;
+                
+                // Extract command output (simplified)
+                QString output = m_currentOutput;
+                
+                // Notify about command execution
+                Q_EMIT commandExecuted(m_currentCommand, output, m_lastExitCode);
+                
+                // Add to history if not empty
+                if (!m_currentCommand.trimmed().isEmpty()) {
+                    if (!m_commandHistory.contains(m_currentCommand)) {
+                        m_commandHistory.append(m_currentCommand);
+                    }
+                }
+                
+                // Reset current output buffer
+                m_currentOutput.clear();
+            }
+            
+            // Detect the prompt for future use
+            detectPrompt();
+            
+            // Try to detect the working directory
+            detectWorkingDirectory();
+            
+            // Try to detect exit code
+            detectExitCode();
+            
+            break;
+        }
+    }
+}
+
+void TerminalEmulator::setCursorPosition(int x, int y)
+{
+    setCursorPositionInternal(x, y, true);
+}
+
+QString TerminalEmulator::getText(bool stripFormatting) const
+{
+    const QVector<TerminalLine> &activeScreen = m_alternateScreenActive ? m_alternateScreen : m_screen;
+    QString result;
+    
+    for (int i = 0; i < activeScreen.size(); ++i) {
+        result += getLine(i, stripFormatting);
+        if (i < activeScreen.size() - 1) {
+            result += QLatin1Char('\n');
+        }
+    }
+    
+    return result;
+}
+
+QString TerminalEmulator::getLine(int line, bool stripFormatting) const
+{
+    const QVector<TerminalLine> &activeScreen = m_alternateScreenActive ? m_alternateScreen : m_screen;
+    
+    if (line < 0 || line >= activeScreen.size()) {
+        return QString();
+    }
+    
+    const TerminalLine &termLine = activeScreen[line];
+    QString result;
+    
+    for (const TerminalCell &cell : termLine) {
+        result.append(cell.character);
+    }
+    
+    return result;
+}
+
+QString TerminalEmulator::currentWorkingDirectory() const
+{
+    return m_workingDirectory;
+}
+
+bool TerminalEmulator::isBusy() const
+{
+    return m_busy;
+}
+
+int TerminalEmulator::lastExitCode() const
+{
+    return m_lastExitCode;
+}
+
+const QVector<TerminalLine> &TerminalEmulator::screenData() const
+{
+    return m_alternateScreenActive ? m_alternateScreen : m_screen;
+}
+
+QString TerminalEmulator::currentCommand() const
+{
+    return m_currentCommand;
+}
+
+QString TerminalEmulator::currentPrompt() const
+{
+    return m_currentPrompt;
+}
+
+QStringList TerminalEmulator::commandHistory() const
+{
+    return m_commandHistory;
+}
+
+void TerminalEmulator::setDefaultForegroundColor(const QColor &color)
+{
+    m_defaultForeground = color;
+    Q_EMIT redrawRequired();
+}
+
+void TerminalEmulator::setDefaultBackgroundColor(const QColor &color)
+{
+    m_defaultBackground = color;
+    Q_EMIT redrawRequired();
+}
+
+void TerminalEmulator::detectPrompt()
+{
+    // Get the active screen buffer
+    const QVector<TerminalLine> &activeScreen = m_alternateScreenActive ? m_alternateScreen : m_screen;
+    
+    if (activeScreen.isEmpty()) {
+        return;
+    }
+    
+    // Get the last line
+    const TerminalLine &line = activeScreen.last();
+    
+    // Convert to string
+    QString lineText;
+    for (const TerminalCell &cell : line) {
+        lineText.append(cell.character);
+    }
+    
+    // Try to match prompt pattern
+    QRegularExpressionMatch match = m_promptRegex.match(lineText);
+    if (match.hasMatch()) {
+        m_currentPrompt = match.captured(0);
+    }
+}
+
+void TerminalEmulator::detectWorkingDirectory()
+{
+    // Get the active screen buffer
+    const QVector<TerminalLine> &activeScreen = m_alternateScreenActive ? m_alternateScreen : m_screen;
+    
+    if (activeScreen.isEmpty()) {
+        return;
+    }
+    
+    // Look for working directory hints in recent output
+    for (int i = activeScreen.size() - 1; i >= qMax(0, activeScreen.size() - 5); --i) {
+        const TerminalLine &line = activeScreen[i];
+        
+        // Convert to string
+        QString lineText;
+        for (const TerminalCell &cell : line) {
+            lineText.append(cell.character);
+        }
+        
+        // Try to match working directory pattern
+        QRegularExpressionMatch match = m_cwdRegex.match(lineText);
+        if (match.hasMatch()) {
+            QString potentialCwd = match.captured(0).trimmed();
+            
+            // Verify if this is a valid directory
+            if (QDir(potentialCwd).exists()) {
+                if (m_workingDirectory != potentialCwd) {
+                    m_workingDirectory = potentialCwd;
+                    Q_EMIT workingDirectoryChanged(m_workingDirectory);
+                }
+                break;
+            }
+        }
+    }
+}
+
+void TerminalEmulator::detectExitCode()
+{
+    // Get the active screen buffer
+    const QVector<TerminalLine> &activeScreen = m_alternateScreenActive ? m_alternateScreen : m_screen;
+    
+    if (activeScreen.isEmpty()) {
+        return;
+    }
+    
+    // Look for exit code hints in recent output
+    for (int i = activeScreen.size() - 1; i >= qMax(0, activeScreen.size() - 3); --i) {
+        const TerminalLine &line = activeScreen[i];
+        
+        // Convert to string
+        QString lineText;
+        for (const TerminalCell &cell : line) {
+            lineText.append(cell.character);
+        }
+        
+        // Try to match exit code pattern
+        QRegularExpressionMatch match = m_exitCodeRegex.match(lineText);
+        if (match.hasMatch()) {
+            bool ok;
+            int exitCode = match.captured(1).toInt(&ok);
+            if (ok) {
+                m_lastExitCode = exitCode;
+                break;
+            }
+        }
+    }
+}

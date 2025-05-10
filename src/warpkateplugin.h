@@ -41,7 +41,7 @@ public:
      * @param mainWindow the main window to create the view for
      * @return the new created view
      */
-    KTextEditor::ConfigPage *configPage(int number, QWidget *parent, const char *name) override;
+    KTextEditor::ConfigPage *configPage(int number, QWidget *parent) override;
 
     /**
      * Number of config pages for this plugin

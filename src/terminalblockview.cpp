@@ -37,7 +37,7 @@
 
 // Block widget styles
 static const QString COMMAND_STYLE = 
-    "QLabel { "
+    QStringLiteral("QLabel { "
     "   color: #eee; "
     "   background-color: #444; "
     "   padding: 4px 8px; "
@@ -45,47 +45,47 @@ static const QString COMMAND_STYLE =
     "   border-top-right-radius: 4px; "
     "   font-family: monospace; "
     "   font-weight: bold; "
-    "}";
+    "}");
 
 static const QString OUTPUT_STYLE_BASE = 
-    "QTextEdit { "
+    QStringLiteral("QTextEdit { "
     "   color: #ddd; "
     "   background-color: #333; "
     "   border: none; "
     "   padding: 8px; "
     "   font-family: monospace; "
-    "}";
+    "}");
 
 static const QString OUTPUT_STYLE_COMPLETED = 
-    "QTextEdit { "
+    QStringLiteral("QTextEdit { "
     "   color: #ddd; "
     "   background-color: #333; "
     "   border: none; "
     "   padding: 8px; "
     "   font-family: monospace; "
-    "}";
+    "}");
 
 static const QString OUTPUT_STYLE_FAILED = 
-    "QTextEdit { "
+    QStringLiteral("QTextEdit { "
     "   color: #ddd; "
     "   background-color: #3a2a2a; "
     "   border: none; "
     "   padding: 8px; "
     "   font-family: monospace; "
-    "}";
+    "}");
 
 static const QString COMMAND_INPUT_STYLE = 
-    "QLineEdit { "
+    QStringLiteral("QLineEdit { "
     "   color: #eee; "
     "   background-color: #444; "
     "   border: 1px solid #555; "
     "   border-radius: 4px; "
     "   padding: 4px 8px; "
     "   font-family: monospace; "
-    "}";
+    "}");
 
 static const QString EXECUTE_BUTTON_STYLE = 
-    "QPushButton { "
+    QStringLiteral("QPushButton { "
     "   color: #eee; "
     "   background-color: #455; "
     "   border: none; "
@@ -98,7 +98,7 @@ static const QString EXECUTE_BUTTON_STYLE =
     "} "
     "QPushButton:pressed { "
     "   background-color: #677; "
-    "}";
+    "}");
 
 TerminalBlockView::TerminalBlockView(QWidget *parent)
     : QWidget(parent)
@@ -215,7 +215,7 @@ void TerminalBlockView::executeCommand(const QString &command)
     m_commandInput->clear();
     
     // Emit signal
-    emit commandExecuted(command);
+    Q_EMIT commandExecuted(command);
     
     // Scroll to bottom
     QTimer::singleShot(100, this, [this]() {
@@ -238,7 +238,7 @@ void TerminalBlockView::navigateToBlock(int blockId)
         }
         
         // Emit signal
-        emit blockSelected(blockId);
+        Q_EMIT blockSelected(blockId);
     }
 }
 
@@ -415,7 +415,7 @@ void TerminalBlockView::setupUI()
     // Container for blocks
     m_blockContainer = new QWidget(m_scrollArea);
     m_blockContainer->setObjectName("blockContainer");
-    m_blockContainer->setStyleSheet("#blockContainer { background-color: #2a2a2a; }");
+    m_blockContainer->setStyleSheet(QStringLiteral("#blockContainer { background-color: #2a2a2a; }"));
     
     // Layout for blocks
     m_blockLayout = new QVBoxLayout(m_blockContainer);
@@ -433,8 +433,8 @@ void TerminalBlockView::setupUI()
     inputLayout->setSpacing(8);
     
     // Command prompt
-    QLabel *promptLabel = new QLabel("$", inputWidget);
-    promptLabel->setStyleSheet("QLabel { color: #6a6; font-family: monospace; font-weight: bold; }");
+    QLabel *promptLabel = new QLabel(QStringLiteral("$"), inputWidget);
+    promptLabel->setStyleSheet(QStringLiteral("QLabel { color: #6a6; font-family: monospace; font-weight: bold; }"));
     
     // Command input
     m_commandInput = new QLineEdit(inputWidget);
@@ -464,7 +464,7 @@ QWidget *TerminalBlockView::createBlockWidget(const CommandBlock &block)
 {
     // Create container widget for the block
     QWidget *blockWidget = new QWidget(m_blockContainer);
-    blockWidget->setObjectName(QString("block_%1").arg(block.id));
+    blockWidget->setObjectName(QStringLiteral("block_%1").arg(block.id));
     
     // Create layout for the block
     QVBoxLayout *blockLayout = new QVBoxLayout(blockWidget);
@@ -472,7 +472,7 @@ QWidget *TerminalBlockView::createBlockWidget(const CommandBlock &block)
     blockLayout->setSpacing(0);
     
     // Create command label (prompt + command text)
-    QString commandLabelText = QString("$ %1").arg(block.command);
+    QString commandLabelText = QStringLiteral("$ %1").arg(block.command);
     QLabel *commandLabel = new QLabel(commandLabelText, blockWidget);
     commandLabel->setStyleSheet(COMMAND_STYLE);
     commandLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -490,19 +490,19 @@ QWidget *TerminalBlockView::createBlockWidget(const CommandBlock &block)
     
     // Adjust text edit height to content
     QFontMetrics metrics(outputTextEdit->font());
-    int lineCount = block.output.count('\n') + 1;
+    int lineCount = block.output.count(QLatin1Char('\n')) + 1;
     int contentHeight = metrics.height() * lineCount + 20;
     outputTextEdit->setFixedHeight(qMin(contentHeight, 400));
     
     // Apply style based on block state
     switch (block.state) {
-        case CommandBlock::Running:
+        case Executing:
             outputTextEdit->setStyleSheet(OUTPUT_STYLE_BASE);
             break;
-        case CommandBlock::Completed:
+        case Completed:
             outputTextEdit->setStyleSheet(OUTPUT_STYLE_COMPLETED);
             break;
-        case CommandBlock::Failed:
+        case Failed:
             outputTextEdit->setStyleSheet(OUTPUT_STYLE_FAILED);
             break;
     }
@@ -519,7 +519,7 @@ QWidget *TerminalBlockView::createBlockWidget(const CommandBlock &block)
     
     // Add highlight for current block
     if (block.id == m_currentBlockId) {
-        blockWidget->setStyleSheet("QWidget { border-left: 3px solid #6a6; }");
+        blockWidget->setStyleSheet(QStringLiteral("QWidget { border-left: 3px solid #6a6; }"));
     }
     
     return blockWidget;
@@ -532,7 +532,7 @@ void TerminalBlockView::updateBlockWidget(int blockId)
     }
     
     // Get block
-    CommandBlock block = m_model->block(blockId);
+    CommandBlock block = m_model->blockById(blockId);
     
     // Get block parts
     QPair<QLabel*, QTextEdit*> parts = m_blockParts.value(blockId);
@@ -540,35 +540,35 @@ void TerminalBlockView::updateBlockWidget(int blockId)
     QTextEdit *outputTextEdit = parts.second;
     
     // Update command text
-    commandLabel->setText(QString("$ %1").arg(block.command));
+    commandLabel->setText(QStringLiteral("$ %1").arg(block.command));
     
     // Update output text
     outputTextEdit->setPlainText(block.output);
     
     // Adjust text edit height to content
     QFontMetrics metrics(outputTextEdit->font());
-    int lineCount = block.output.count('\n') + 1;
+    int lineCount = block.output.count(QLatin1Char('\n')) + 1;
     int contentHeight = metrics.height() * lineCount + 20;
     outputTextEdit->setFixedHeight(qMin(contentHeight, 400));
     
     // Apply style based on block state
     switch (block.state) {
-        case CommandBlock::Running:
+        case Executing:
             outputTextEdit->setStyleSheet(OUTPUT_STYLE_BASE);
             break;
-        case CommandBlock::Completed:
+        case Completed:
             outputTextEdit->setStyleSheet(OUTPUT_STYLE_COMPLETED);
             break;
-        case CommandBlock::Failed:
+        case Failed:
             outputTextEdit->setStyleSheet(OUTPUT_STYLE_FAILED);
             break;
     }
     
     // Update highlight for current block
     if (blockId == m_currentBlockId) {
-        m_blockWidgets[blockId]->setStyleSheet("QWidget { border-left: 3px solid #6a6; }");
+        m_blockWidgets[blockId]->setStyleSheet(QStringLiteral("QWidget { border-left: 3px solid #6a6; }"));
     } else {
-        m_blockWidgets[blockId]->setStyleSheet("");
+        m_blockWidgets[blockId]->setStyleSheet(QString());
     }
 }
 
@@ -615,7 +615,7 @@ QMenu *TerminalBlockView::createContextMenu()
         QAction *rerunAction = menu->addAction(tr("Re-run Command"));
         connect(rerunAction, &QAction::triggered, this, [this]() {
             if (m_model && m_currentBlockId >= 0) {
-                CommandBlock block = m_model->block(m_currentBlockId);
+                CommandBlock block = m_model->blockById(m_currentBlockId);
                 executeCommand(block.command);
             }
         });
@@ -628,19 +628,19 @@ void TerminalBlockView::onCurrentBlockChanged(int blockId)
 {
     // Clear highlight on previous current block
     if (m_currentBlockId >= 0 && m_blockWidgets.contains(m_currentBlockId)) {
-        m_blockWidgets[m_currentBlockId]->setStyleSheet("");
+        m_blockWidgets[m_currentBlockId]->setStyleSheet(QString());
     }
     
     m_currentBlockId = blockId;
     
     // Set highlight on new current block
     if (m_currentBlockId >= 0 && m_blockWidgets.contains(m_currentBlockId)) {
-        m_blockWidgets[m_currentBlockId]->setStyleSheet("QWidget { border-left: 3px solid #6a6; }");
+        m_blockWidgets[m_currentBlockId]->setStyleSheet(QStringLiteral("QWidget { border-left: 3px solid #6a6; }"));
         m_scrollArea->ensureWidgetVisible(m_blockWidgets[m_currentBlockId]);
     }
     
     // Emit signal
-    emit blockSelected(blockId);
+    Q_EMIT blockSelected(blockId);
 }
 
 void TerminalBlockView::onBlockCreated(int blockId)
@@ -650,7 +650,7 @@ void TerminalBlockView::onBlockCreated(int blockId)
     }
     
     // Get block
-    CommandBlock block = m_model->block(blockId);
+        CommandBlock block = m_model->blockById(blockId);
     
     // Create block widget
     QWidget *blockWidget = createBlockWidget(block);
@@ -678,13 +678,13 @@ void TerminalBlockView::onBlockStateChanged(int blockId, int state)
     
     // Apply style based on block state
     switch (state) {
-        case CommandBlock::Running:
+        case Executing:
             outputTextEdit->setStyleSheet(OUTPUT_STYLE_BASE);
             break;
-        case CommandBlock::Completed:
+        case Completed:
             outputTextEdit->setStyleSheet(OUTPUT_STYLE_COMPLETED);
             break;
-        case CommandBlock::Failed:
+        case Failed:
             outputTextEdit->setStyleSheet(OUTPUT_STYLE_FAILED);
             break;
     }
@@ -727,15 +727,15 @@ void TerminalBlockView::onCursorBlinkTimer()
     
     // Update current block if it's running
     if (m_model && m_model->currentBlockId() >= 0) {
-        CommandBlock block = m_model->block(m_model->currentBlockId());
-        if (block.state == CommandBlock::Running) {
+        CommandBlock block = m_model->blockById(m_model->currentBlockId());
+        if (block.state == Executing) {
             // Update the cursor in the output
             QPair<QLabel*, QTextEdit*> parts = m_blockParts.value(block.id);
             QTextEdit *outputTextEdit = parts.second;
             
             QString output = block.output;
             if (m_cursorVisible) {
-                output += "█"; // Visible cursor
+                output += QStringLiteral("█"); // Visible cursor
             }
             
             outputTextEdit->setPlainText(output);
@@ -760,7 +760,7 @@ void TerminalBlockView::onCopyAction()
         QApplication::clipboard()->setText(selectedText);
     } else if (m_model && m_currentBlockId >= 0) {
         // If no text is selected, copy entire output of current block
-        CommandBlock block = m_model->block(m_currentBlockId);
+        CommandBlock block = m_model->blockById(m_currentBlockId);
         QApplication::clipboard()->setText(block.output);
     }
 }
@@ -773,7 +773,7 @@ void TerminalBlockView::onPasteAction()
         QString clipboardText = QApplication::clipboard()->text();
         if (!clipboardText.isEmpty()) {
             // Remove any newlines to avoid unexpected execution
-            clipboardText = clipboardText.split('\n').first();
+            clipboardText = clipboardText.split(QLatin1Char('\n')).first();
             
             // Insert text at cursor position
             m_commandInput->insert(clipboardText);
@@ -784,7 +784,7 @@ void TerminalBlockView::onPasteAction()
         
         if (!clipboardText.isEmpty()) {
             // Split by lines and use first line as command
-            QString command = clipboardText.split('\n').first().trimmed();
+            QString command = clipboardText.split(QLatin1Char('\n')).first().trimmed();
             
             if (!command.isEmpty()) {
                 m_commandInput->setText(command);

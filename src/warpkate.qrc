@@ -1,20 +1,9 @@
 <!DOCTYPE RCC>
 <RCC version="1.0">
     <qresource prefix="/warpkate">
-        <!-- Icons -->
-        <file>icons/warpkate.png</file>
-        <file>icons/terminal-block.png</file>
-        <file>icons/ai-suggestion.png</file>
-        
         <!-- UI Files -->
         <file>ui/warpkatewidget.ui</file>
         <file>ui/configwidget.ui</file>
-        
-        <!-- Configuration -->
-        <file>config/default_settings.json</file>
-        
-        <!-- Other Resources -->
-        <file>resources/syntax_themes.json</file>
     </qresource>
 </RCC>
 

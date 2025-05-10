@@ -243,6 +243,14 @@ public:
     bool setBlockEndTime(int id, const QDateTime &endTime);
     
     /**
+     * Set a block's output
+     * @param id Block ID
+     * @param output Output text
+     * @return True if successful
+     */
+    bool setBlockOutput(int id, const QString &output);
+    
+    /**
      * Get all blocks
      * @return List of all command blocks
      */
@@ -340,7 +348,7 @@ private:
      * Generate a new unique block ID
      * @return New block ID
      */
-    int generateBlockId() const;
+    int generateBlockId();
     
     /**
      * Update a block's metadata from a model index
