@@ -10,6 +10,8 @@ set(warpkate_SRCS
     blockmodel.h
     terminalblockview.cpp
     terminalblockview.h
+    warpkateconfigpage.cpp
+    warpkateconfigpage.h
 )
 
 # UI files
@@ -81,8 +83,8 @@ target_include_directories(warpkateplugin
 )
 
 # Install the plugin
-install(TARGETS warpkateplugin DESTINATION ${KDE_INSTALL_PLUGINDIR}/ktexteditor)
+install(TARGETS warpkateplugin DESTINATION ${KDE_INSTALL_PLUGINDIR}/kf6/ktexteditor)
 
 # Install JSON metadata for plugin
-install(FILES warpkateplugin.json DESTINATION ${KDE_INSTALL_PLUGINDIR}/ktexteditor)
+install(FILES warpkateplugin.json DESTINATION ${KDE_INSTALL_PLUGINDIR}/kf6/ktexteditor)
 

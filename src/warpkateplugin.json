@@ -8,22 +8,22 @@
         ],
         "Category": "Utilities",
         "Description": "Integrates Warp Terminal features into Kate editor, providing block-based command execution and AI-assisted suggestions.",
-        "Icon": "utilities-terminal",
-        "Id": "warpkateplugin",
+                "Icon": "utilities-terminal",
+                "Id": "warpkateplugin",
         "License": "GPL-3.0",
         "Name": "WarpKate Terminal",
         "Version": "0.1.0",
         "Website": "https://github.com/warpkate/warpkate"
     },
-    "KTextEditor": {
-        "Version": "5.80.0"
-    },
+            "KTextEditor": {
+                "Version": "6.0.0"
+            },
     "MimeTypes": [
         "text/plain"
     ],
     "ServiceTypes": [
         "KTextEditor/Plugin"
     ],
-    "X-Kate-PluginInterface-Version": "5.2"
+            "X-Kate-PluginInterface-Version": "6.0"
 }
 

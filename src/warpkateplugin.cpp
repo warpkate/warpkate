@@ -5,6 +5,7 @@
 
 #include "warpkateplugin.h"
 #include "warpkateview.h"
+#include "warpkateconfigpage.h"
 
 #include <KPluginFactory>
 #include <KLocalizedString>
@@ -48,13 +49,12 @@ int WarpKatePlugin::configPages() const
 
 KTextEditor::ConfigPage *WarpKatePlugin::configPage(int number, QWidget *parent)
 {
-    
     if (number != 0) {
         return nullptr;
     }
     
-    // TODO: Implement a proper config page once we have settings to configure
-    return nullptr;
+    // Return a new instance of our config page
+    return new WarpKateConfigPage(parent);
 }
 
 #include "warpkateplugin.moc"
