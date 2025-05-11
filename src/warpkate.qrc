@@ -5,5 +5,7 @@
         <file>ui/warpkatewidget.ui</file>
         <file>ui/configwidget.ui</file>
     </qresource>
+    <qresource prefix="/icons">
+        <file>icons/warpkate.svg</file>
+    </qresource>
 </RCC>
-

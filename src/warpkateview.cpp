@@ -725,19 +725,9 @@ void WarpKateView::showPreferences()
 
 void WarpKateView::onInputModeToggled(bool aiMode)
 {
-    // Update the label based on the toggle state
-    KConfigGroup config = KSharedConfig::openConfig()->group(QStringLiteral("WarpKate"));
-    QString assistantName = config.readEntry("AssistantName", QStringLiteral("WarpKate"));
-    
     if (aiMode) {
-        m_inputModeLabel->setText(QStringLiteral("%1:").arg(assistantName));
-        
-        // In AI mode, we don't need the prompt prefix
-        if (config.readEntry("UseCustomAssistantName", false)) {
-            m_promptInput->setPlaceholderText(i18n("> Ask %1...", assistantName));
-        } else {
-            m_promptInput->setPlaceholderText(i18n("> Ask AI assistant..."));
-        }
+        m_inputModeLabel->setText(QStringLiteral("Robby:"));
+        m_promptInput->setPlaceholderText(i18n("> Ask me anything..."));
     } else {
         m_inputModeLabel->setText(i18n("Command:"));
         m_promptInput->setPlaceholderText(i18n("> Type command..."));
