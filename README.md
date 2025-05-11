@@ -14,6 +14,14 @@ The project takes an unconventional approach to open source development, with AI
 - AI-powered command suggestions
 - Seamless integration with Kate's editor interface
 
+<div align="center">
+  <a href="INSTALLATION.md">
+    <img src="https://img.shields.io/badge/INSTALLATION%20GUIDE-8A2BE2?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Installation Guide" />
+  </a>
+</div>
+
+> **IMPORTANT:** WarpKate is designed to work optimally with Warp Terminal. For the full experience, you must install Warp Terminal first and create an account.
+
 ## Project Goals
 
 1. **Enhanced Developer Experience**: Create a unified environment where editing and terminal operations coexist seamlessly
