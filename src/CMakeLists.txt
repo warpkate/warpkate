@@ -12,6 +12,8 @@ set(warpkate_SRCS
     terminalblockview.h
     warpkateconfigpage.cpp
     warpkateconfigpage.h
+    warpkatepreferencesdialog.cpp
+    warpkatepreferencesdialog.h
 )
 
 # UI files

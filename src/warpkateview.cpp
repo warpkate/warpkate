@@ -8,6 +8,7 @@
 #include "terminalemulator.h"
 #include "blockmodel.h"
 // Not using terminalblockview.h in simplified interface
+#include "warpkatepreferencesdialog.h"
 
 #include <KLocalizedString>
 #include <KActionCollection>
@@ -108,6 +109,8 @@ void WarpKateView::setupUI()
                         this, &WarpKateView::insertToEditor);
     m_toolbar->addAction(QIcon::fromTheme(QStringLiteral("document-save")), i18n("Save to Obsidian"), 
                         this, &WarpKateView::saveToObsidian);
+    m_toolbar->addAction(QIcon::fromTheme(QStringLiteral("edit-clear")), i18n("Clear Screen"), 
+                        this, &WarpKateView::clearTerminal);
     
     // Add spacer to push preferences button to the right
     QWidget* spacer = new QWidget(m_toolbar);
@@ -438,10 +441,130 @@ void WarpKateView::saveToObsidian()
         return;
     }
     
-    // TODO: Implement actual Obsidian vault integration
-    // For now, just show a message in the conversation area
-    m_conversationArea->append(QStringLiteral("\nSaving to Obsidian is not yet implemented."));
-    m_conversationArea->append(QString());
+    // Get the Obsidian vault path from settings
+    KConfigGroup config = KSharedConfig::openConfig()->group(QStringLiteral("WarpKate"));
+    QString vaultPath = config.readEntry("ObsidianVaultPath", QString());
+    
+    if (vaultPath.isEmpty()) {
+        // No vault path configured, show a message and open preferences
+        QTextCursor cursor = m_conversationArea->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        m_conversationArea->setTextCursor(cursor);
+        
+        cursor.insertBlock();
+        cursor.insertText(QStringLiteral("To save to Obsidian, you need to configure your vault path in Preferences."));
+        cursor.insertBlock();
+        cursor.insertText(QStringLiteral("Would you like to configure it now?"));
+        
+        // Create a simulated AI response with options
+        QTimer::singleShot(500, this, [this]() {
+            showPreferences();
+        });
+        
+        return;
+    }
+    
+    // Analyze the conversation to find meaningful content to save
+    QStringList conversations;
+    QTextDocument *doc = m_conversationArea->document();
+    
+    for (QTextBlock block = doc->begin(); block != doc->end(); block = block.next()) {
+        QString line = block.text().trimmed();
+        if (line.startsWith(QStringLiteral("? ")) || line.startsWith(QStringLiteral("AI Response:")) || 
+            line.startsWith(QStringLiteral("> ")) || line.startsWith(QStringLiteral("Code Check"))) {
+            
+            // Start of a new conversation
+            conversations.append(line);
+            
+            // Get following blocks until next conversation marker
+            QTextBlock nextBlock = block.next();
+            while (nextBlock.isValid()) {
+                QString nextLine = nextBlock.text().trimmed();
+                
+                // If we hit another conversation marker, break
+                if (nextLine.startsWith(QStringLiteral("? ")) || nextLine.startsWith(QStringLiteral("AI Response:")) ||
+                    nextLine.startsWith(QStringLiteral("> ")) || nextLine.startsWith(QStringLiteral("Code Check"))) {
+                    break;
+                }
+                
+                // Add this line to the current conversation
+                if (!nextLine.isEmpty()) {
+                    conversations.last().append(QStringLiteral("\n") + nextLine);
+                }
+                
+                nextBlock = nextBlock.next();
+            }
+        }
+    }
+    
+    // Get file pattern from settings
+    QString filePattern = config.readEntry("DefaultFilenamePattern", QStringLiteral("WarpKate-Chat-{date}"));
+    
+    // Replace {date} with current date
+    QDateTime now = QDateTime::currentDateTime();
+    filePattern.replace(QStringLiteral("{date}"), now.toString(QStringLiteral("yyyy-MM-dd")));
+    
+    // Display suggestions in the conversation area
+    QTextCursor cursor = m_conversationArea->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    m_conversationArea->setTextCursor(cursor);
+    
+    cursor.insertBlock();
+    cursor.insertBlock();
+    
+    QTextCharFormat headerFormat;
+    headerFormat.setFontWeight(QFont::Bold);
+    headerFormat.setForeground(QBrush(QColor(0, 128, 0)));
+    
+    cursor.setCharFormat(headerFormat);
+    cursor.insertText(QStringLiteral("Obsidian Save Analysis:"));
+    cursor.setCharFormat(QTextCharFormat());
+    
+    cursor.insertBlock();
+    cursor.insertText(QStringLiteral("I found %1 conversation exchanges in this session.").arg(conversations.size()));
+    cursor.insertBlock();
+    
+    if (conversations.size() <= 3) {
+        cursor.insertText(QStringLiteral("Recommended: Save the entire conversation to Obsidian."));
+    } else {
+        cursor.insertText(QStringLiteral("Recommended: Save the following key exchanges to Obsidian:"));
+        
+        // Find the most important conversations (for demo, just take first, last, and one in middle)
+        QStringList important;
+        important << conversations.first();
+        
+        if (conversations.size() > 2) {
+            important << conversations.at(conversations.size() / 2);
+        }
+        
+        important << conversations.last();
+        
+        cursor.insertBlock();
+        for (int i = 0; i < important.size(); ++i) {
+            // Truncate if too long
+            QString snippet = important[i].left(100);
+            if (important[i].length() > 100) {
+                snippet += QStringLiteral("...");
+            }
+            
+            cursor.insertText(QStringLiteral("%1. %2").arg(i+1).arg(snippet));
+            cursor.insertBlock();
+        }
+    }
+    
+    cursor.insertBlock();
+    cursor.insertText(QStringLiteral("Proposed filename: %1.md").arg(filePattern));
+    cursor.insertBlock();
+    cursor.insertText(QStringLiteral("Location: %1").arg(vaultPath));
+    cursor.insertBlock();
+    
+    cursor.insertText(QStringLiteral("(In a full implementation, this would save the file to your Obsidian vault)"));
+    cursor.insertBlock();
+    
+    // TODO: Implement actual file writing
+    // This would create a markdown file in the Obsidian vault with the conversation
+    
+    m_conversationArea->ensureCursorVisible();
 }
 
 void WarpKateView::checkCode()
@@ -564,14 +687,9 @@ void WarpKateView::showPreferences()
 {
     qDebug() << "WarpKate: Preferences dialog requested";
     
-    // TODO: Implement a preferences dialog
-    // For now, just show a placeholder message in the conversation area
-    m_conversationArea->append(QStringLiteral("\nPreferences dialog would open here."));
-    m_conversationArea->append(QStringLiteral("Settings would include:"));
-    m_conversationArea->append(QStringLiteral("- Obsidian vault path"));
-    m_conversationArea->append(QStringLiteral("- AI model configuration"));
-    m_conversationArea->append(QStringLiteral("- Shell preferences"));
-    m_conversationArea->append(QString());  // Add a blank line for readability
+    // Create and show the preferences dialog
+    WarpKatePreferencesDialog dialog(m_mainWindow->window());
+    dialog.exec();
 }
 
 void WarpKateView::submitInput()
