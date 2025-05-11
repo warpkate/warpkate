@@ -89,7 +89,7 @@ void WarpKateView::setupUI()
         m_plugin,
         QStringLiteral("warpkate_terminal"),
         KTextEditor::MainWindow::Bottom,
-        QIcon(QIcon::fromTheme(QStringLiteral("utilities-terminal")).pixmap(QSize(14, 14))),
+        QIcon(QIcon::fromTheme(QStringLiteral("utilities-terminal")).pixmap(QSize(18, 18))),
         i18n("WarpKate"));
     
     // Create main container widget
@@ -100,7 +100,7 @@ void WarpKateView::setupUI()
     
     // Create toolbar for buttons
     m_toolbar = new QToolBar(m_terminalWidget);
-    m_toolbar->setIconSize(QSize(14, 14));
+    m_toolbar->setIconSize(QSize(18, 18));
     
     // Add action buttons to toolbar
     m_toolbar->addAction(QIcon::fromTheme(QStringLiteral("dialog-ok-apply")), i18n("Code Check"), 
@@ -134,7 +134,14 @@ void WarpKateView::setupUI()
     m_promptInput = new QTextEdit(m_terminalWidget);
     
     // Configure the input area
-    m_promptInput->setPlaceholderText(i18n("> Type command or '?' for AI assistant"));
+    // Get assistant name from preferences
+    KConfigGroup config = KSharedConfig::openConfig()->group(QStringLiteral("WarpKate"));
+    QString assistantName = config.readEntry("AssistantName", QStringLiteral("WarpKate"));
+    if (config.readEntry("UseCustomAssistantName", false)) {
+        m_promptInput->setPlaceholderText(i18n("> Type command or '%1' for AI assistant", assistantName));
+    } else {
+        m_promptInput->setPlaceholderText(i18n("> Type command or '?' for AI assistant"));
+    }
     m_promptInput->setMinimumHeight(24);  // Start small
     m_promptInput->setMaximumHeight(150); // Limit maximum height
     m_promptInput->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::MinimumExpanding);
@@ -150,7 +157,31 @@ void WarpKateView::setupUI()
     // Install event filter to handle Enter/Shift+Enter
     m_promptInput->installEventFilter(this);
     
-    layout->addWidget(m_promptInput);
+    // Create a horizontal layout for the prompt input area
+    QHBoxLayout *promptLayout = new QHBoxLayout();
+    promptLayout->setContentsMargins(0, 0, 0, 0);
+    promptLayout->setSpacing(4);
+
+    // Create a label for the input mode
+    m_inputModeLabel = new QLabel(i18n("Command:"), m_terminalWidget);
+    m_inputModeLabel->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
+
+    // Create a toggle switch for input mode
+    m_inputModeToggle = new QToolButton(m_terminalWidget);
+    m_inputModeToggle->setCheckable(true);
+    m_inputModeToggle->setText(i18n("AI"));
+    m_inputModeToggle->setIcon(QIcon::fromTheme(QStringLiteral("view-media-artist")));
+    m_inputModeToggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    m_inputModeToggle->setChecked(false);
+    connect(m_inputModeToggle, &QToolButton::toggled, this, &WarpKateView::onInputModeToggled);
+
+    // Add components to the layout
+    promptLayout->addWidget(m_inputModeLabel);
+    promptLayout->addWidget(m_inputModeToggle);
+    promptLayout->addWidget(m_promptInput, 1); // Takes most of the space
+
+    // Add the prompt layout to the main layout instead of directly adding m_promptInput
+    layout->addLayout(promptLayout);
     
     // Initially hide the tool view
     m_toolView->setVisible(false);
@@ -692,6 +723,27 @@ void WarpKateView::showPreferences()
     dialog.exec();
 }
 
+void WarpKateView::onInputModeToggled(bool aiMode)
+{
+    // Update the label based on the toggle state
+    KConfigGroup config = KSharedConfig::openConfig()->group(QStringLiteral("WarpKate"));
+    QString assistantName = config.readEntry("AssistantName", QStringLiteral("WarpKate"));
+    
+    if (aiMode) {
+        m_inputModeLabel->setText(QStringLiteral("%1:").arg(assistantName));
+        
+        // In AI mode, we don't need the prompt prefix
+        if (config.readEntry("UseCustomAssistantName", false)) {
+            m_promptInput->setPlaceholderText(i18n("> Ask %1...", assistantName));
+        } else {
+            m_promptInput->setPlaceholderText(i18n("> Ask AI assistant..."));
+        }
+    } else {
+        m_inputModeLabel->setText(i18n("Command:"));
+        m_promptInput->setPlaceholderText(i18n("> Type command..."));
+    }
+}
+
 void WarpKateView::submitInput()
 {
     // Get input text
@@ -700,13 +752,31 @@ void WarpKateView::submitInput()
         return;
     }
     
-    // Process based on whether it starts with "?"
-    if (input.startsWith(QStringLiteral("?"))) {
+    // Process based on the toggle state
+    if (m_inputModeToggle->isChecked()) {
         // AI mode
-        handleAIQuery(input.mid(1).trimmed());
+        handleAIQuery(input);
     } else {
-        // Terminal mode
-        executeCommand(input);
+        // Process based on whether it starts with "?" or the assistant name as a fallback
+        KConfigGroup config = KSharedConfig::openConfig()->group(QStringLiteral("WarpKate"));
+        QString assistantTrigger = QStringLiteral("?");
+        if (config.readEntry("UseCustomAssistantName", false)) {
+            assistantTrigger = config.readEntry("AssistantName", QStringLiteral("WarpKate"));
+        }
+        
+        if (input.startsWith(assistantTrigger) || input.startsWith(QStringLiteral("?"))) {
+            // AI mode
+            QString query;
+            if (input.startsWith(assistantTrigger)) {
+                query = input.mid(assistantTrigger.length()).trimmed();
+            } else {
+                query = input.mid(1).trimmed();
+            }
+            handleAIQuery(query);
+        } else {
+            // Terminal mode
+            executeCommand(input);
+        }
     }
     
     // Clear input area

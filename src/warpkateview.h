@@ -17,13 +17,14 @@
 #include <QTextEdit>
 #include <QLineEdit>
 #include <QToolBar>
+#include <QLabel>
+#include <QToolButton>
 
 class WarpKatePlugin;
 class TerminalEmulator;
 class BlockModel;
 // We don't use TerminalBlockView in the simplified interface
 class QAction;
-class QToolButton;
 
 /**
  * WarpKateView - Plugin view for the WarpKate plugin
@@ -206,6 +207,8 @@ private:
     QTextEdit *m_conversationArea;
     QTextEdit *m_promptInput;
     QToolBar *m_toolbar;
+    QLabel *m_inputModeLabel;
+    QToolButton *m_inputModeToggle;
     
     // Terminal components
     TerminalEmulator *m_terminalEmulator;
@@ -224,6 +227,12 @@ private:
     
     // State
     bool m_terminalVisible;
+    
+private Q_SLOTS:
+    /**
+     * Handle input mode toggle changes
+     */
+    void onInputModeToggled(bool aiMode);
 };
 
 #endif // WARPKATEVIEW_H
