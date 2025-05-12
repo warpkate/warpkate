@@ -1,0 +1,8 @@
+// Include the AIService header
+#include "aiservice.h"
+
+// Add an AIService member variable in the private section:
+AIService m_aiService;
+
+// Add a new method to handle AI responses in the private section:
+void handleAIResponse(const QString &response, bool isFinal);

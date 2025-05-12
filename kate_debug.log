@@ -1,0 +1,2 @@
+qt.core.library: "pipewire-0.3" loaded library
+qt.multimedia.symbolsresolver: pipewire-0.3 symbols resolved

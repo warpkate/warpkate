@@ -35,13 +35,13 @@ public:
      * Destructor
      */
     ~WarpKatePlugin() override;
-
+    
     /**
-     * Create a new plugin view for the given main window
-     * @param mainWindow the main window to create the view for
-     * @return the new created view
+     * Create a new view of this plugin for the given main window
+     * @param mainWindow main window for which to create the plugin view
+     * @return new plugin view for the given main window
      */
-    KTextEditor::ConfigPage *configPage(int number, QWidget *parent) override;
+    QObject *createView(KTextEditor::MainWindow *mainWindow) override;
 
     /**
      * Number of config pages for this plugin
@@ -50,11 +50,11 @@ public:
     int configPages() const override;
     
     /**
-     * Create a new view of this plugin for the given main window
-     * @param mainWindow main window for which to create the plugin view
-     * @return new plugin view for the given main window
+     * Create a new plugin view for the given main window
+     * @param mainWindow the main window to create the view for
+     * @return the new created view
      */
-    QObject *createView(KTextEditor::MainWindow *mainWindow) override;
+    KTextEditor::ConfigPage *configPage(int number, QWidget *parent) override;
     
 private:
     /**
@@ -64,4 +64,3 @@ private:
 };
 
 #endif // WARPKATEPLUGIN_H
-

@@ -1,0 +1,14 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/warpkate">
+        <!-- UI Files -->
+        <file>ui/warpkatewidget.ui</file>
+        <file>ui/configwidget.ui</file>
+    </qresource>
+    <qresource prefix="/icons">
+        
+        <file>icons/org.kde.konsole.svg</file>
+        <file>icons/robbie50.svg</file>
+        <file>icons/aibutton.svg</file>
+    </qresource>
+</RCC>

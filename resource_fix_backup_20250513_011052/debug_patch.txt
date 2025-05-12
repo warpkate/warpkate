@@ -1,0 +1,46 @@
+// Add at top of file
+#include <QFile>
+#include <QDir>
+#include <QStandardPaths>
+
+// Add to WarpKatePlugin::WarpKatePlugin constructor
+// Resource debugging
+qDebug() << "WarpKate plugin constructor - Resource paths:";
+qDebug() << "Current directory:" << QDir::currentPath();
+qDebug() << "Application directory:" << QCoreApplication::applicationDirPath();
+
+// Check if icons exist in resources
+QStringList iconPaths = {
+    ":/icons/aibutton.svg", 
+    ":/icons/robbie50.svg",
+    ":/icons/org.kde.konsole.svg",
+    ":/aibutton.svg", 
+    ":/robbie50.svg",
+    ":/org.kde.konsole.svg",
+    "/icons/aibutton.svg", 
+    "/icons/robbie50.svg",
+    "/icons/org.kde.konsole.svg"
+};
+
+qDebug() << "Checking icon existence:";
+for (const QString &path : iconPaths) {
+    bool exists = QFile::exists(path);
+    qDebug() << "  " << path << ":" << (exists ? "EXISTS" : "NOT FOUND");
+}
+
+// List all resources
+qDebug() << "All available resources:";
+QDir resourceDir(":/");
+QStringList resources = resourceDir.entryList(QDir::AllEntries);
+for (const QString &resource : resources) {
+    qDebug() << "  " << resource;
+    
+    // If it's a directory, list contents
+    if (QFileInfo(":/"+resource).isDir()) {
+        QDir subDir(":/"+resource);
+        QStringList subResources = subDir.entryList(QDir::AllEntries);
+        for (const QString &subResource : subResources) {
+            qDebug() << "    " << subResource;
+        }
+    }
+}

@@ -59,6 +59,7 @@ WarpKateView::WarpKateView(WarpKatePlugin *plugin, KTextEditor::MainWindow *main
     
     // Initialize terminal (placeholder for now)
     setupTerminal();
+    // Initialize AI service
     
     // Connect to document changes
     connect(m_mainWindow, &KTextEditor::MainWindow::viewChanged, this, [this](KTextEditor::View *view) {
@@ -101,6 +102,19 @@ void WarpKateView::setupUI()
     // Create toolbar for buttons
     m_toolbar = new QToolBar(m_terminalWidget);
     m_toolbar->setIconSize(QSize(18, 18));
+    
+    // Initialize mode icons
+    m_terminalIcon = QIcon(QStringLiteral(":/icons/org.kde.konsole.svg"));
+    m_aiIcon = QIcon(QStringLiteral(":/icons/robbie50.svg"));
+    
+    // Create mode icon label and add to toolbar
+//    m_modeIconLabel = new QLabel(m_terminalWidget);
+//    m_modeIconLabel->setFixedSize(50, 50);
+//    m_modeIconLabel->setAlignment(Qt::AlignCenter);
+//    m_modeIconLabel->setPixmap(m_terminalIcon.pixmap(QSize(50, 50)));
+//    
+//    // Add as first element in toolbar
+//    m_toolbar->insertWidget(0, m_modeIconLabel);
     
     // Add action buttons to toolbar
     m_toolbar->addAction(QIcon::fromTheme(QStringLiteral("dialog-ok-apply")), i18n("Code Check"), 
@@ -169,9 +183,9 @@ void WarpKateView::setupUI()
     // Create a toggle switch for input mode
     m_inputModeToggle = new QToolButton(m_terminalWidget);
     m_inputModeToggle->setCheckable(true);
-    m_inputModeToggle->setText(i18n("AI"));
-    m_inputModeToggle->setIcon(QIcon::fromTheme(QStringLiteral("view-media-artist")));
-    m_inputModeToggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    m_inputModeToggle->setIcon(m_aiIcon);
+    m_inputModeToggle->setIconSize(QSize(80, 80));
+    m_inputModeToggle->setToolButtonStyle(Qt::ToolButtonIconOnly);
     m_inputModeToggle->setChecked(false);
     connect(m_inputModeToggle, &QToolButton::toggled, this, &WarpKateView::onInputModeToggled);
 
@@ -726,9 +740,13 @@ void WarpKateView::showPreferences()
 void WarpKateView::onInputModeToggled(bool aiMode)
 {
     if (aiMode) {
-        m_inputModeLabel->setText(QStringLiteral("Robby:"));
+        // Show Robbie icon for AI mode
+        // m_modeIconLabel is now removed
+        m_inputModeLabel->setText(QStringLiteral("AI Mode:"));
         m_promptInput->setPlaceholderText(i18n("> Ask me anything..."));
     } else {
+        // Show Terminal icon for command mode
+        // m_modeIconLabel is now removed
         m_inputModeLabel->setText(i18n("Command:"));
         m_promptInput->setPlaceholderText(i18n("> Type command..."));
     }
@@ -787,6 +805,12 @@ bool WarpKateView::eventFilter(QObject *obj, QEvent *event)
     // Handle key press events
     if (event->type() == QEvent::KeyPress) {
         QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
+
+        // Check for ">" as first character to activate AI mode
+        if (keyEvent->text() == QStringLiteral(">") && m_promptInput->toPlainText().isEmpty() && !m_inputModeToggle->isChecked()) {
+            m_inputModeToggle->setChecked(true); // Switch to AI mode
+            return true; // Event handled, dont insert the ">" character
+        }
         
         // Detect Enter key (but not Shift+Enter)
         if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {

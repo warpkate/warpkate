@@ -1,11 +1,11 @@
 <!DOCTYPE RCC>
 <RCC version="1.0">
-    <qresource prefix="/warpkate">
-        <!-- UI Files -->
+    <!-- Use simple, explicit resource paths -->
+    <qresource>
+        <file>icons/aibutton.svg</file>
+        <file>icons/robbie50.svg</file>
+        <file>icons/org.kde.konsole.svg</file>
         <file>ui/warpkatewidget.ui</file>
         <file>ui/configwidget.ui</file>
-    </qresource>
-    <qresource prefix="/icons">
-        <file>icons/warpkate.svg</file>
     </qresource>
 </RCC>

@@ -103,6 +103,12 @@ void WarpKatePreferencesDialog::setupUI()
     m_userNameEdit = new QLineEdit();
     personalityForm->addRow(userNameLabel, m_userNameEdit);
     
+    QLabel *aiIconLabel = new QLabel(i18n("AI Button Icon:"));
+    m_aiIconCombo = new QComboBox();
+    m_aiIconCombo->addItem(QIcon(QStringLiteral(":/icons/icons/robbie50.svg")), i18n("Default"), QStringLiteral("robbie50.svg"));
+    m_aiIconCombo->addItem(QIcon(QStringLiteral(":/icons/icons/aibutton.svg")), i18n("AI Button"), QStringLiteral("aibutton.svg"));
+    personalityForm->addRow(aiIconLabel, m_aiIconCombo);
+    
     assistantLayout->addWidget(personalityGroupBox);
     
     QGroupBox *responseGroupBox = new QGroupBox(i18n("Response Style"));
@@ -135,6 +141,7 @@ void WarpKatePreferencesDialog::setupUI()
     m_responseCreativitySlider->setMinimum(1);
     m_responseCreativitySlider->setMaximum(5);
     m_responseCreativitySlider->setValue(3);
+    m_aiIconCombo->setCurrentIndex(0); // Default icon
     m_responseCreativitySlider->setTickPosition(QSlider::TicksBelow);
     m_responseCreativitySlider->setTickInterval(1);
     responseForm->addRow(creativityLabel, m_responseCreativitySlider);
@@ -228,6 +235,7 @@ void WarpKatePreferencesDialog::defaults()
     m_customResponseStyleCheck->setChecked(false);
     m_responseDetailSlider->setValue(3);
     m_responseCreativitySlider->setValue(3);
+    m_aiIconCombo->setCurrentIndex(0); // Default icon
     
     // Update dependent UI elements
     onCustomAssistantNameToggled(m_customAssistantNameCheck->isChecked());
@@ -254,6 +262,17 @@ void WarpKatePreferencesDialog::loadSettings()
     m_responseDetailSlider->setValue(config.readEntry("ResponseDetailLevel", 3));
     m_responseCreativitySlider->setValue(config.readEntry("ResponseCreativity", 3));
     
+    // AI Icon
+    QString iconName = config.readEntry("AIButtonIcon", QStringLiteral("robbie50.svg"));
+    int iconIndex = 0;
+    for (int i = 0; i < m_aiIconCombo->count(); i++) {
+        if (m_aiIconCombo->itemData(i).toString() == iconName) {
+            iconIndex = i;
+            break;
+        }
+    }
+    m_aiIconCombo->setCurrentIndex(iconIndex);
+    
     // Update dependent UI elements
     onCustomAssistantNameToggled(m_customAssistantNameCheck->isChecked());
     onCustomResponseStyleToggled(m_customResponseStyleCheck->isChecked());
@@ -278,6 +297,9 @@ void WarpKatePreferencesDialog::saveSettings()
     config.writeEntry("UseCustomResponseStyle", m_customResponseStyleCheck->isChecked());
     config.writeEntry("ResponseDetailLevel", m_responseDetailSlider->value());
     config.writeEntry("ResponseCreativity", m_responseCreativitySlider->value());
+    
+    // AI Icon
+    config.writeEntry("AIButtonIcon", m_aiIconCombo->currentData().toString());
     
     // Sync changes to disk
     config.sync();

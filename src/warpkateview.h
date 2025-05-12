@@ -19,6 +19,7 @@
 #include <QToolBar>
 #include <QLabel>
 #include <QToolButton>
+#include "aiservice.h"
 
 class WarpKatePlugin;
 class TerminalEmulator;
@@ -158,6 +159,8 @@ private:
      */
     void generateAIResponse(const QString &query, const QString &contextInfo);
     
+    /**
+    
 private Q_SLOTS:
     /**
      * Handle terminal output
@@ -209,6 +212,9 @@ private:
     QToolBar *m_toolbar;
     QLabel *m_inputModeLabel;
     QToolButton *m_inputModeToggle;
+    QLabel *m_modeIconLabel; // For displaying the mode icon
+    QIcon m_terminalIcon;    // Terminal mode icon
+    QIcon m_aiIcon;          // AI mode icon
     
     // Terminal components
     TerminalEmulator *m_terminalEmulator;
@@ -227,6 +233,8 @@ private:
     
     // State
     bool m_terminalVisible;
+    
+    // AI service
     
 private Q_SLOTS:
     /**

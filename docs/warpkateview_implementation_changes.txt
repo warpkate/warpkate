@@ -1,0 +1,61 @@
+// Replace the existing generateAIResponse method with this implementation:
+
+void WarpKateView::generateAIResponse(const QString &query, const QString &contextInfo)
+{
+    // Format for AI response header
+    QTextCursor cursor = m_conversationArea->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    m_conversationArea->setTextCursor(cursor);
+    
+    QTextCharFormat aiHeaderFormat;
+    aiHeaderFormat.setFontWeight(QFont::Bold);
+    aiHeaderFormat.setForeground(QBrush(QColor(75, 0, 130))); // Indigo
+    
+    cursor.insertBlock();
+    cursor.setCharFormat(aiHeaderFormat);
+    cursor.insertText(QStringLiteral("AI Response:"));
+    cursor.setCharFormat(QTextCharFormat());
+    cursor.insertBlock();
+    
+    // Show a typing indicator
+    cursor.insertText("⋯"); // Typing indicator
+    
+    // Use AIService to generate a response
+    m_aiService.generateResponse(query, contextInfo, 
+        [this](const QString& response, bool isFinal) {
+            this->handleAIResponse(response, isFinal);
+        }
+    );
+}
+
+// Add this new method to handle AI responses:
+
+void WarpKateView::handleAIResponse(const QString &response, bool isFinal)
+{
+    // Get the cursor at the end of the conversation
+    QTextCursor cursor = m_conversationArea->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    
+    // If this is the first chunk, remove the typing indicator
+    if (cursor.position() > 0) {
+        cursor.movePosition(QTextCursor::Left, QTextCursor::KeepAnchor, 1);
+        if (cursor.selectedText() == "⋯") {
+            cursor.removeSelectedText();
+        } else {
+            cursor.movePosition(QTextCursor::Right);
+        }
+    }
+    
+    // Insert the response
+    cursor.insertText(response);
+    
+    // Make sure the view scrolls to show the response
+    m_conversationArea->ensureCursorVisible();
+}
+
+// Also, initialize the AIService in the WarpKateView constructor:
+
+// Add after the setupActions() call:
+// Initialize AI service
+KConfigGroup aiConfig = m_plugin->config()->group("AI");
+m_aiService.initialize(aiConfig);

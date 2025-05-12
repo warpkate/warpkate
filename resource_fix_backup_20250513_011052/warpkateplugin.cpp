@@ -1,6 +1,3 @@
-#include <QFile>
-#include <QDir>
-#include <QStandardPaths>
 /*
  * SPDX-FileCopyrightText: 2025 WarpKate Contributors
  * SPDX-License-Identifier: GPL-3.0-or-later

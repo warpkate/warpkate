@@ -101,6 +101,7 @@ private:
     QCheckBox *m_customResponseStyleCheck;
     QSlider *m_responseDetailSlider;
     QSlider *m_responseCreativitySlider;
+    QComboBox *m_aiIconCombo;
 };
 
 #endif // WARPKATEPREFERENCESDIALOG_H
