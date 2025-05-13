@@ -1,0 +1,82 @@
+# Interactive File Path Navigation Enhancement
+
+This enhancement adds keyboard navigation and visual highlighting for clickable file paths:
+
+1. Press Tab to cycle through clickable elements - they turn dark blue with light blue background
+2. Press Enter to open the currently focused element
+3. When an element is clicked, it briefly flashes red to provide visual feedback
+
+## How to Implement:
+
+1. Add these member variables to the WarpKateView class in warpkateview.h:
+```cpp
+private:
+    // For interactive element highlighting
+    int m_currentFocusIndex = -1;
+    QList<QTextEdit::ExtraSelection> m_interactiveElements;
+    QTimer *m_clickFeedbackTimer = nullptr;
+    int m_lastClickedIndex = -1;
+    
+    // Methods for interactive element handling
+    void updateInteractiveElements();
+    void focusNextInteractiveElement();
+    void focusPreviousInteractiveElement();
+    void applyInteractiveElementStyles();
+    void flashClickFeedback(int elementIndex);
+```
+
+2. Set up the click feedback timer in the constructor:
+```cpp
+// In constructor
+m_clickFeedbackTimer = new QTimer(this);
+m_clickFeedbackTimer->setSingleShot(true);
+m_clickFeedbackTimer->setInterval(200);
+connect(m_clickFeedbackTimer, &QTimer::timeout, this, [this]() {
+    applyInteractiveElementStyles();
+});
+
+// Install event filter on the conversation area in setupUI
+m_conversationArea->installEventFilter(this);
+```
+
+3. Add this to onTerminalOutput to detect interactive elements:
+```cpp
+// At the end of onTerminalOutput
+if (processedOutput.contains("<a ")) {
+    QTimer::singleShot(100, this, &WarpKateView::updateInteractiveElements);
+}
+```
+
+4. Update the eventFilter method to handle Tab key navigation:
+```cpp
+// Add to eventFilter
+if (obj == m_conversationArea && event->type() == QEvent::KeyPress) {
+    QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
+    
+    if (keyEvent->key() == Qt::Key_Tab) {
+        if (keyEvent->modifiers() & Qt::ShiftModifier) {
+            focusPreviousInteractiveElement();
+        } else {
+            focusNextInteractiveElement();
+        }
+        return true;
+    } else if (keyEvent->key() == Qt::Key_Return) {
+        if (m_currentFocusIndex >= 0 && m_currentFocusIndex < m_interactiveElements.size()) {
+            QString href = m_interactiveElements[m_currentFocusIndex].format.anchorHref();
+            flashClickFeedback(m_currentFocusIndex);
+            onLinkClicked(QUrl(href));
+            return true;
+        }
+    }
+}
+```
+
+5. Implement the methods for handling elements (see interactive_focus_enhancement.cpp for full implementations)
+
+## Key Features
+
+- Blue highlighting shows which items are clickable
+- Tab key navigation allows keyboard-only operation
+- Red flash provides visual feedback when an element is clicked
+
+See interactive_focus_enhancement.cpp for complete implementation details.

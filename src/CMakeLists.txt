@@ -1,28 +1,70 @@
-# Define sources
+# Define sources by component
+# Core plugin components
+set(CORE_SRCS
+    core/warpkateplugin.cpp
+    core/warpkateplugin.h
+    core/warpkateview.cpp
+    core/warpkateview.h
+)
+
+# Terminal components
+set(TERMINAL_SRCS
+    terminal/terminalemulator.cpp
+    terminal/terminalemulator.h
+    terminal/blockmodel.cpp
+    terminal/blockmodel.h
+    terminal/terminalblockview.cpp
+    terminal/terminalblockview.h
+    terminal/terminaloutputprocessor.cpp
+    terminal/terminaloutputprocessor.h
+    terminal/filelisting.cpp
+    terminal/filelisting.h
+#    terminal/qtermwidgetemulator.cpp
+#    terminal/qtermwidgetemulator.h
+)
+
+# AI components
+set(AI_SRCS
+    ai/aiservice.cpp
+    ai/aiservice.h
+    ai/aiprovider.cpp
+    ai/aiprovider.h
+    ai/openai_provider.cpp
+    ai/openai_provider.h
+    ai/apikeymanager.cpp
+    ai/apikeymanager.h
+)
+
+# UI components
+set(UI_SRCS
+    ui/conversationview.cpp
+    ui/conversationview.h
+    ui/commandinput.cpp
+    ui/commandinput.h
+)
+
+# Configuration components
+set(CONFIG_SRCS
+    config/warpkateconfigpage.cpp
+    config/warpkateconfigpage.h
+    config/warpkatepreferencesdialog.cpp
+    config/warpkatepreferencesdialog.h
+)
+
+# Utility components
+set(UTIL_SRCS
+    util/interactive_elements.cpp
+    util/interactive_elements.h
+)
+
+# Combine all source groups
 set(warpkate_SRCS
-    warpkateplugin.cpp
-    warpkateplugin.h
-    warpkateview.cpp
-    warpkateview.h
-    terminalemulator.cpp
-    terminalemulator.h
-    blockmodel.cpp
-    blockmodel.h
-    terminalblockview.cpp
-    terminalblockview.h
-    warpkateconfigpage.cpp
-    warpkateconfigpage.h
-    warpkatepreferencesdialog.cpp
-    warpkatepreferencesdialog.h
-    # AI-related files for v0.15
-    aiprovider.cpp
-    aiprovider.h  
-    aiservice.cpp
-    aiservice.h
-    apikeymanager.cpp
-    apikeymanager.h
-    openai_provider.cpp
-    openai_provider.h
+    ${CORE_SRCS}
+    ${TERMINAL_SRCS}
+    ${AI_SRCS}
+    ${UI_SRCS}
+    ${CONFIG_SRCS}
+    ${UTIL_SRCS}
 )
 
 # UI files
@@ -32,7 +74,7 @@ ki18n_wrap_ui(warpkate_SRCS
 )
 
 # Resources
-qt6_add_resources(warpkate_SRCS warpkate.qrc)
+qt6_add_resources(warpkate_SRCS core/warpkate.qrc)
 
 # Add the plugin library
 add_library(warpkateplugin MODULE ${warpkate_SRCS})
@@ -67,6 +109,8 @@ target_link_libraries(warpkateplugin
         Qt6::Core
         Qt6::Widgets
         Qt6::Network
+#                Qt6::Core5Compat
+#        qtermwidget6
 )
 
 # Include directories

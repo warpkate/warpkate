@@ -34,6 +34,8 @@
 #include <QTextCharFormat>
 #include <QBrush>
 #include <QTimer>
+#include <QCoreApplication>
+#include <QFileInfo>
 
 WarpKateView::WarpKateView(WarpKatePlugin *plugin, KTextEditor::MainWindow *mainWindow)
     : QObject(mainWindow)
@@ -50,6 +52,7 @@ WarpKateView::WarpKateView(WarpKatePlugin *plugin, KTextEditor::MainWindow *main
     , m_terminalVisible(false)
     , m_currentBlockId(-1)
     , m_aiService(nullptr)
+    , m_historyIndex(-1)
 {
     setComponentName(QStringLiteral("warpkate"), i18n("WarpKate"));
     
@@ -120,7 +123,24 @@ void WarpKateView::setupUI()
     // Load AI icon from preferences or use default
     KConfigGroup config = KSharedConfig::openConfig()->group(QStringLiteral("WarpKate"));
     QString iconName = config.readEntry("AIButtonIcon", QStringLiteral("aibutton.svg"));
-    m_aiIcon = QIcon::fromTheme(QStringLiteral("assistant"), QIcon(QStringLiteral(":/icons/%1").arg(iconName)));
+    
+    // Try to load the icon from the filesystem first (check in icons directory relative to executable)
+    QString iconPath = QCoreApplication::applicationDirPath() + QStringLiteral("/icons/") + iconName;
+    QFileInfo iconFileInfo(iconPath);
+    
+    if (!iconFileInfo.exists()) {
+        // If not found, try in the source directory
+        iconPath = QStringLiteral("/home/yani/Projects/WarpKate/icons/") + iconName;
+        iconFileInfo.setFile(iconPath);
+    }
+    
+    if (iconFileInfo.exists() && iconFileInfo.isReadable()) {
+        // Use the file from filesystem if it exists
+        m_aiIcon = QIcon(iconPath);
+    } else {
+        // Fall back to theme icon, then resource icon
+        m_aiIcon = QIcon::fromTheme(QStringLiteral("assistant"), QIcon(QStringLiteral(":/icons/%1").arg(iconName)));
+    }
     
     // Create mode icon label and add to toolbar
 //    m_modeIconLabel = new QLabel(m_terminalWidget);
@@ -823,6 +843,10 @@ void WarpKateView::submitInput()
         return;
     }
     
+    // Reset history navigation to start fresh with the next command
+    m_historyIndex = -1;
+    m_savedPartialCommand.clear();
+    
     // Process based on which mode button is active
     if (m_aiModeToggle->isChecked()) {
         // AI mode
@@ -910,10 +934,23 @@ bool WarpKateView::eventFilter(QObject *obj, QEvent *event)
             return true; // Event handled, don't insert the ">" character
         }
         // Detect Enter key (but not Shift+Enter)
-        if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
+        // Check for Up/Down arrow keys for command history navigation
+        if (keyEvent->key() == Qt::Key_Up) {
+            navigateCommandHistory(1); // Navigate backward (older commands)
+            return true; // Event handled
+        } else if (keyEvent->key() == Qt::Key_Down) {
+            navigateCommandHistory(-1); // Navigate forward (newer commands)
+            return true; // Event handled
+        } else if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
             if (!(keyEvent->modifiers() & Qt::ShiftModifier)) {
                 submitInput();
                 return true; // Event handled
+            }
+        } else {
+            // Reset history navigation when typing other keys
+            if (m_historyIndex != -1) {
+                m_historyIndex = -1;
+                // Don't clear m_savedPartialCommand here since the user is now typing something new
             }
         }
     }
@@ -1345,9 +1382,26 @@ void WarpKateView::refreshUIFromSettings()
     // Get configuration from WarpKate settings
     KConfigGroup config = KSharedConfig::openConfig()->group(QStringLiteral("WarpKate"));
     
-    // Update AI icon
+    // Update AI icon - try filesystem first, then theme, then resource
     QString iconName = config.readEntry("AIButtonIcon", QStringLiteral("aibutton.svg"));
-    m_aiIcon = QIcon(QStringLiteral(":/icons/%1").arg(iconName));
+    
+    // Try to load the icon from the filesystem first (check in icons directory relative to executable)
+    QString iconPath = QCoreApplication::applicationDirPath() + QStringLiteral("/icons/") + iconName;
+    QFileInfo iconFileInfo(iconPath);
+    
+    if (!iconFileInfo.exists()) {
+        // If not found, try in the source directory
+        iconPath = QStringLiteral("/home/yani/Projects/WarpKate/icons/") + iconName;
+        iconFileInfo.setFile(iconPath);
+    }
+    
+    if (iconFileInfo.exists() && iconFileInfo.isReadable()) {
+        // Use the file from filesystem if it exists
+        m_aiIcon = QIcon(iconPath);
+    } else {
+        // Fall back to theme icon, then resource icon
+        m_aiIcon = QIcon::fromTheme(QStringLiteral("assistant"), QIcon(QStringLiteral(":/icons/%1").arg(iconName)));
+    }
     
     // Update toggle button icon if in AI mode
     if (m_inputModeToggle->isChecked()) {
@@ -2446,5 +2500,60 @@ void WarpKateView::flashClickFeedback(int elementIndex)
         
         // Start timer to remove feedback after a short delay
         m_clickFeedbackTimer->start();
+    }
+}
+
+/**
+ * Navigate through command history using arrow keys
+ * @param direction Direction to navigate: 1 for older (up), -1 for newer (down)
+ */
+void WarpKateView::navigateCommandHistory(int direction)
+{
+    // Get the command history from the terminal emulator
+    QStringList history = m_terminalEmulator->commandHistory();
+    
+    // If history is empty, nothing to navigate
+    if (history.isEmpty()) {
+        return;
+    }
+    
+    // Save the current input text if we're starting navigation
+    if (m_historyIndex == -1) {
+        m_savedPartialCommand = m_promptInput->toPlainText();
+    }
+    
+    // Update history index based on direction
+    if (direction > 0) {
+        // Navigate backward (older)
+        if (m_historyIndex < history.size() - 1) {
+            m_historyIndex++;
+        }
+    } else {
+        // Navigate forward (newer)
+        if (m_historyIndex > 0) {
+            m_historyIndex--;
+        } else if (m_historyIndex == 0) {
+            // Return to the saved partial command when going past the newest entry
+            m_historyIndex = -1;
+        }
+    }
+    
+    // Update the input text based on the new index
+    if (m_historyIndex >= 0 && m_historyIndex < history.size()) {
+        // Show the historical command
+        m_promptInput->setPlainText(history.at(history.size() - 1 - m_historyIndex));
+        
+        // Move cursor to the end of the text
+        QTextCursor cursor = m_promptInput->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        m_promptInput->setTextCursor(cursor);
+    } else if (m_historyIndex == -1) {
+        // Restore the saved partial command
+        m_promptInput->setPlainText(m_savedPartialCommand);
+        
+        // Move cursor to the end of the text
+        QTextCursor cursor = m_promptInput->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        m_promptInput->setTextCursor(cursor);
     }
 }

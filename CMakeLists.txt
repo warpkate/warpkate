@@ -46,6 +46,9 @@ find_package(KF6 ${KF6_MIN_VERSION} REQUIRED COMPONENTS
     TextEditor
 )
 
+## Find qtermwidget for terminal functionality
+#find_package(qtermwidget6 REQUIRED)
+
 # Add C++17 support
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
